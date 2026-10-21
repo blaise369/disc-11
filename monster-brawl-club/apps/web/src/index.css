@@ -1,0 +1,75 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Luckiest Guy", "Fredoka", system-ui, sans-serif;
+  --font-sans: "Fredoka", system-ui, sans-serif;
+  --color-ink: #2b1055;
+  --color-night: #1a0b35;
+  --color-dusk: #3b1a6e;
+  --color-cream: #fff8e8;
+  --color-goo: #9bd23c;
+  --color-nugget: #f6c90e;
+  --color-flame: #ff7a1a;
+  --color-attack: #e94f37;
+  --color-defense: #2e9be6;
+  --color-tricks: #9b4fe0;
+  --color-brains: #3cb371;
+  --color-side-a: #ff7a1a;
+  --color-side-b: #2e9be6;
+}
+
+html, body, #root { min-height: 100%; }
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  color: var(--color-ink);
+  background:
+    radial-gradient(circle at 15% 0%, #5a2a9a 0, transparent 40%),
+    radial-gradient(circle at 90% 90%, #1f6a52 0, transparent 35%),
+    var(--color-night);
+  background-attachment: fixed;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.font-display { letter-spacing: 0.04em; }
+.text-outline { text-shadow: 2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000; }
+
+/* Chunky cartoon panels and buttons */
+.panel { background: var(--color-cream); border: 4px solid #000; border-radius: 1.25rem; box-shadow: 0 6px 0 #000; }
+.btn {
+  font-family: var(--font-display); letter-spacing: 0.04em; color: #fff;
+  border: 3px solid #000; border-radius: 0.9rem; padding: 0.55rem 1.1rem;
+  box-shadow: 0 5px 0 #000; transition: transform 0.06s, box-shadow 0.06s, filter 0.1s;
+  text-shadow: 2px 2px 0 rgb(0 0 0 / 0.35); cursor: pointer; user-select: none;
+}
+.btn:hover:not(:disabled) { filter: brightness(1.08); }
+.btn:active:not(:disabled) { transform: translateY(4px); box-shadow: 0 1px 0 #000; }
+.btn:disabled { filter: grayscale(0.8) brightness(0.9); opacity: 0.6; cursor: not-allowed; }
+
+.chip { white-space: nowrap; border: 2px solid #000; border-radius: 999px; padding: 0.1rem 0.6rem; font-weight: 600; font-size: 0.8rem; box-shadow: 0 2px 0 #000; }
+
+/* Monster art animation */
+.monster-idle svg { animation: bob 2.4s ease-in-out infinite; transform-origin: 50% 100%; }
+@keyframes bob { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.03, 0.97); } }
+.sheen { position: relative; overflow: hidden; }
+.sheen::after {
+  content: ""; position: absolute; inset: -50%;
+  background: linear-gradient(115deg, transparent 40%, rgb(255 255 255 / 0.55) 50%, transparent 60%);
+  animation: shine 3s linear infinite; pointer-events: none;
+}
+@keyframes shine { from { transform: translateX(-60%); } to { transform: translateX(60%); } }
+
+.pop-in { animation: popin 0.4s cubic-bezier(.3, 1.6, .5, 1); }
+@keyframes popin { from { transform: scale(0.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.shake { animation: shake 0.45s; }
+@keyframes shake { 20% { transform: translateX(-8px) rotate(-3deg); } 40% { transform: translateX(7px) rotate(2deg); } 60% { transform: translateX(-4px); } 80% { transform: translateX(3px); } }
+.squash { animation: squash 0.6s forwards; transform-origin: 50% 100%; }
+@keyframes squash { 0% { transform: scale(1, 1); } 30% { transform: scale(1.35, 0.25); } 100% { transform: scale(1.3, 0.3); } }
+.float-up { animation: floatup 1.2s ease-out forwards; }
+@keyframes floatup { from { opacity: 0; transform: translateY(10px); } 20% { opacity: 1; } to { opacity: 0; transform: translateY(-40px); } }
+.pulse-soft { animation: pulsesoft 1.2s ease-in-out infinite alternate; }
+@keyframes pulsesoft { to { transform: scale(1.06); } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}

@@ -4,10 +4,28 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "echo \"@mbc/web: no tests until a later milestone\"",
-    "coverage": "echo \"@mbc/web: no tests until a later milestone\"",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "echo \"@mbc/web: covered by the Playwright e2e test (pnpm e2e at the root)\"",
+    "coverage": "echo \"@mbc/web: covered by the Playwright e2e test (pnpm e2e at the root)\"",
     "typecheck": "tsc -p tsconfig.json"
   },
-  "dependencies": { "@mbc/shared": "workspace:*" },
-  "devDependencies": { "typescript": "^5.6.3" }
+  "dependencies": {
+    "@mbc/shared": "workspace:*",
+    "pixi.js": "^8.6.6",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-router-dom": "^7.6.0",
+    "socket.io-client": "^4.8.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.8",
+    "@types/react": "^19.1.6",
+    "@types/react-dom": "^19.1.5",
+    "@vitejs/plugin-react": "^4.5.0",
+    "tailwindcss": "^4.1.8",
+    "typescript": "^5.6.3",
+    "vite": "^6.3.5"
+  }
 }

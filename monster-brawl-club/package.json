@@ -6,9 +6,15 @@
   "scripts": {
     "test": "pnpm -r test",
     "coverage": "pnpm -r coverage",
-    "typecheck": "pnpm -r typecheck"
+    "typecheck": "pnpm -r typecheck",
+    "dev": "pnpm --parallel --filter @mbc/server --filter @mbc/web dev",
+    "build": "pnpm --filter @mbc/web build",
+    "start": "NODE_ENV=production pnpm --filter @mbc/server start",
+    "db:push": "pnpm --filter @mbc/server db:push",
+    "e2e": "playwright test"
   },
   "devDependencies": {
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "@playwright/test": "1.56.1"
   }
 }
