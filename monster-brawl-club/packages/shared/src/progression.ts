@@ -7,6 +7,11 @@ export const GROW_TIERS = Object.keys(BALANCE.growTiers) as GrowTier[];
 export type Rarity = keyof typeof BALANCE.rarity;
 export const RARITIES = Object.keys(BALANCE.rarity) as Rarity[];
 export type CardFrame = keyof typeof BALANCE.cardFrames;
+export type SpecialVariant = keyof typeof BALANCE.variants;
+export type Variant = 'normal' | SpecialVariant;
+/** Rarest first. */
+export const SPECIAL_VARIANTS = Object.keys(BALANCE.variants) as SpecialVariant[];
+export const VARIANTS: Variant[] = ['normal', ...[...SPECIAL_VARIANTS].reverse()];
 
 // ---------- Levels ----------
 
@@ -58,10 +63,29 @@ export function rollRarity(r: number): Rarity {
   return 'common';
 }
 
+/** Roll a variant from r in [0, 1): each tier has its own exact chance. */
+export function rollVariant(r: number): Variant {
+  let acc = 0;
+  for (const v of SPECIAL_VARIANTS) {
+    acc += BALANCE.variants[v].chance;
+    if (r < acc) return v;
+  }
+  return 'normal';
+}
+
+export function variantMultiplier(v: Variant): number {
+  return v === 'normal' ? 1 : BALANCE.variants[v].multiplier;
+}
+
+/** Strength shown on the card and used for the wheel: base strength times the variant boost. */
+export function power(strength: number, variant: Variant): number {
+  return Math.round(strength * variantMultiplier(variant));
+}
+
 export interface GrowRoll {
   strength: number;
   rarity: Rarity;
-  sheen: boolean;
+  variant: Variant;
 }
 
 export function rollGrow(tier: GrowTier, rng: Rng = Math.random): GrowRoll {
@@ -72,7 +96,7 @@ export function rollGrow(tier: GrowTier, rng: Rng = Math.random): GrowRoll {
   return {
     strength: Math.round(base * (1 + BALANCE.rarity[rarity].strengthBonus)),
     rarity,
-    sheen: rng() < BALANCE.sheenChance,
+    variant: rollVariant(rng()),
   };
 }
 
@@ -130,9 +154,10 @@ export function msUntilNextEnergy(state: EnergyState, now: number): number {
 
 // ---------- Fight modifiers ----------
 
-/** Strength used for the wheel, including a one-fight strength potion. */
-export function fightStrength(strength: number, strengthPotion: boolean): number {
-  return strengthPotion ? Math.round(strength * (1 + BALANCE.potions.strengthBoost.strengthMultiplier)) : strength;
+/** Strength used for the wheel: variant boost, plus a one-fight strength potion. */
+export function fightStrength(strength: number, strengthPotion: boolean, variant: Variant = 'normal'): number {
+  const potion = strengthPotion ? 1 + BALANCE.potions.strengthBoost.strengthMultiplier : 1;
+  return Math.round(strength * variantMultiplier(variant) * potion);
 }
 
 // ---------- Village maths ----------

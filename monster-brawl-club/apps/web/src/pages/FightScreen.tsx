@@ -4,7 +4,8 @@ import {
   beats, CHAT_PHRASES, hashSeed, STRATEGIES, type FightSideView, type FightView, type Side, type Strategy,
 } from '@mbc/shared';
 import { MonsterCard } from '../components/MonsterCard';
-import { Squash } from '../components/Squash';
+import { Finisher } from '../components/finishers/Finisher';
+import { finisherFor } from '../components/finishers/finishers';
 import { STAKE_INFO } from '../components/stakes';
 import { StrategyCycle, STRATEGY_INFO } from '../components/strategy';
 import { Button, Loading, Modal, Panel, useCountdown, useMediaQuery } from '../components/ui';
@@ -34,9 +35,7 @@ function stakeText(f: FightView): string | null {
   return `${win.monster.name} ate ${lose.monster.name}! +${gain} strength. ${lose.monster.name} went to the graveyard.`;
 }
 
-function SideCard({ side, f, ko, squash, bubble, flip }: { side: FightSideView; f: FightView; ko: boolean; squash: boolean; bubble: string | null; flip?: boolean }) {
-  const [squashed, setSquashed] = useState(false);
-  useEffect(() => { if (!squash) setSquashed(false); }, [squash]);
+function SideCard({ side, ko, bubble, flip, cardRef }: { side: FightSideView; ko: boolean; bubble: string | null; flip?: boolean; cardRef: (el: HTMLDivElement | null) => void }) {
   return (
     <div className="relative flex flex-col items-center gap-1">
       <div className="text-center text-sm font-semibold text-white text-outline">
@@ -45,11 +44,10 @@ function SideCard({ side, f, ko, squash, bubble, flip }: { side: FightSideView; 
         {side.luck > 0 && <span className="chip ml-1 bg-goo text-ink">🍀</span>}
       </div>
       <div className="relative">
-        <div className={squashed ? 'squash' : ''}><MonsterCard m={{ ...side.monster, locked: false, potions: [] }} flip={flip} ko={ko} size="sm" /></div>
-        {squash && <Squash width={150} height={300} onImpact={() => setSquashed(true)} />}
+        <div ref={cardRef}><MonsterCard m={{ ...side.monster, locked: false, potions: [] }} flip={flip} ko={ko} size="sm" /></div>
         {bubble && <div className="pop-in absolute -top-6 left-1/2 z-20 -translate-x-1/2 whitespace-nowrap rounded-xl border-[3px] border-black bg-white px-3 py-1 font-semibold shadow-[0_3px_0_#000]">{bubble}</div>}
       </div>
-      {side.fightStrength !== side.monster.strength && <div className="text-xs text-white">💪 Potion: {side.fightStrength} strength</div>}
+      {side.fightStrength !== side.monster.power && <div className="text-xs text-white">💪 Potion: {side.fightStrength} strength</div>}
     </div>
   );
 }
@@ -68,6 +66,11 @@ export function FightScreen() {
   const [verify, setVerify] = useState<boolean | null>(null);
   const lastState = useRef<string | null>(null);
   const small = useMediaQuery('(max-width: 639px)');
+  // The winner's finishing move plays after a live spin; skipped for history and walk-offs.
+  const [finisher, setFinisher] = useState<'none' | 'playing' | 'finished' | 'skipped'>('none');
+  const [arena, setArena] = useState<HTMLDivElement | null>(null);
+  const [cardA, setCardA] = useState<HTMLDivElement | null>(null);
+  const [cardB, setCardB] = useState<HTMLDivElement | null>(null);
   const left = useCountdown(f?.state === 'ROUND_PICKING' || f?.state === 'PENDING' ? f.deadline : null);
 
   useEffect(() => {
@@ -102,6 +105,11 @@ export function FightScreen() {
     };
   }, [socket, id]);
 
+  const live = animateSpin && !f?.result?.abandonedBy;
+  useEffect(() => {
+    if (spinDone && f?.result && live && finisher === 'none') setFinisher('playing');
+  }, [spinDone, f?.result, live, finisher]);
+
   useEffect(() => {
     if (spinDone && f?.result) {
       const mine = f.a.userId === me.id ? 'A' : 'B';
@@ -117,7 +125,10 @@ export function FightScreen() {
   const mine = mySide === 'A' ? f.a : f.b;
   const theirs = mySide === 'A' ? f.b : f.a;
   const share = f.spin ? f.spin.pFinal : f.shareA ?? f.pStart ?? 0.5;
-  const showResult = !!f.result && spinDone;
+  const finisherOn = finisher === 'playing' || finisher === 'finished';
+  const showResult = !!f.result && spinDone && finisher !== 'playing' && !(live && finisher === 'none');
+  const winnerSide = f.result?.winnerSide;
+  const winnerMonster = winnerSide === 'A' ? f.a.monster : f.b.monster;
   const won = f.result?.winnerSide === mySide;
   const loserSide = f.result ? (f.result.winnerSide === 'A' ? 'B' : 'A') : null;
   const lastRound = f.rounds[f.rounds.length - 1];
@@ -132,12 +143,12 @@ export function FightScreen() {
 
   return (
     <div className="space-y-3">
-      <div className="rounded-3xl border-4 border-black bg-gradient-to-b from-[#ff9a5a] via-[#ffcf7a] to-[#c27a3a] p-3 shadow-[0_6px_0_#000]">
+      <div ref={setArena} className="relative overflow-hidden rounded-3xl border-4 border-black bg-gradient-to-b from-[#ff9a5a] via-[#ffcf7a] to-[#c27a3a] p-3 shadow-[0_6px_0_#000]">
         <div className="mb-1 text-center font-display text-lg text-white text-outline">
           {f.kind === 'boss' ? '👑 Boss fight' : f.kind === 'practice' ? '🎯 Practice' : '⚔️ PvP'} · {f.roundsPlanned} skill round{f.roundsPlanned === 1 ? '' : 's'}
         </div>
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-          <SideCard side={f.a} f={f} ko={showResult && loserSide === 'A'} squash={showResult && loserSide === 'A'} bubble={bubbles.A} />
+          <SideCard side={f.a} ko={showResult && !finisherOn && loserSide === 'A'} bubble={bubbles.A} cardRef={setCardA} />
           <div className="flex flex-col items-center">
             <div className="mb-1 flex w-full justify-between gap-4 font-display text-xl text-outline">
               <span className="text-side-a">{pct(share)}</span>
@@ -145,8 +156,12 @@ export function FightScreen() {
             </div>
             <Wheel shareA={share} spinRoll={animateSpin && f.spin ? f.spin.roll : null} onSpinEnd={() => setSpinDone(true)} size={small ? 140 : 260} />
           </div>
-          <SideCard side={f.b} f={f} ko={showResult && loserSide === 'B'} squash={showResult && loserSide === 'B'} bubble={bubbles.B} flip />
+          <SideCard side={f.b} ko={showResult && !finisherOn && loserSide === 'B'} bubble={bubbles.B} flip cardRef={setCardB} />
         </div>
+        {finisherOn && arena && cardA && cardB && winnerSide && (
+          <Finisher arena={arena} winnerEl={winnerSide === 'A' ? cardA : cardB} loserEl={winnerSide === 'A' ? cardB : cardA}
+            species={winnerMonster.species} palette={winnerMonster.palette} onDone={() => setFinisher('finished')} />
+        )}
       </div>
 
       <Panel className="text-center">
@@ -196,8 +211,13 @@ export function FightScreen() {
           </div>
         )}
 
-        {f.state === 'SPINNING' && !showResult && <p className="font-display text-3xl pulse-soft">🎡 Spinning!</p>}
-        {f.state === 'RESOLVED' && !showResult && <p className="font-display text-3xl pulse-soft">🎡 Spinning!</p>}
+        {(f.state === 'SPINNING' || f.state === 'RESOLVED') && !showResult && finisher !== 'playing' && <p className="font-display text-3xl pulse-soft">🎡 Spinning!</p>}
+        {finisher === 'playing' && (
+          <div>
+            <p className="font-display text-3xl">{winnerMonster.name}'s finishing move: {finisherFor(winnerMonster.species).name}!</p>
+            <button className="mt-1 text-sm underline opacity-70" onClick={() => setFinisher('skipped')}>Skip ⏭</button>
+          </div>
+        )}
 
         {showResult && f.result && (
           <div className="pop-in space-y-2">
@@ -276,7 +296,7 @@ export function ReportBlock({ username, fightId }: { username: string; fightId?:
         <div className="mt-3 flex flex-wrap justify-end gap-2">
           <Button colour="grey" onClick={() => setOpen(false)}>Cancel</Button>
           <Button colour="purple" onClick={async () => {
-            if (await run(() => post('/reports', { username, reason, ...(fightId ? { fightId } : {}) }))) { toast('Thanks, a grown-up will look at it.', 'good'); setOpen(false); }
+            if (await run(() => post('/reports', { username, reason, ...(fightId ? { fightId } : {}) }))) { toast('Thanks for reporting. We will take a look.', 'good'); setOpen(false); }
           }}>Report</Button>
           <Button colour="red" onClick={async () => {
             if (await run(() => post('/blocks', { username }))) { toast(`${username} is blocked.`, 'good'); setOpen(false); }

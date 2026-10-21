@@ -15,7 +15,6 @@ import { resolveFight } from '../services/fightResolve';
 import { assertMonsterFree } from '../services/monsters';
 import { isBlockedEither } from '../services/social';
 import { loadCard } from '../views';
-import { playTimeOver } from '../auth';
 
 export interface Emitter {
   toUser(userId: string, event: 'fight:state' | 'challenge:incoming', fight: FightView): void;
@@ -98,10 +97,11 @@ async function sideView(userId: string, monsterId: string, stake: FightStake | n
   ]);
   if (!card) throw notFound('monster_not_found');
   const strengthPotion = potions.some(p => p.potionType === 'strengthBoost');
+  // Variant boosts (shiny, radioactive...) apply on the wheel forever.
   const luck = potions.some(p => p.potionType === 'luckyCharm') ? BALANCE.potions.luckyCharm.wheelShare : 0;
   return {
     userId, username: user.username, isBot: user.role === 'bot', monster: card, stake,
-    fightStrength: fightStrength(card.strength, strengthPotion), luck,
+    fightStrength: fightStrength(card.strength, strengthPotion, card.variant), luck,
   };
 }
 
@@ -124,11 +124,9 @@ export async function sendChallenge(userId: string, req: ChallengeRequest): Prom
     prisma.user.findUniqueOrThrow({ where: { id: userId } }),
     prisma.user.findUnique({ where: { id: req.defenderId } }),
   ]);
-  if (!them || them.role !== 'child') throw notFound('player_not_found');
+  if (!them || them.role !== 'player') throw notFound('player_not_found');
   if (await isBlockedEither(userId, them.id)) throw forbidden('blocked', "You can't challenge this player.");
-  if (req.stake !== 'bite' && !me.allowRiskyStakes) throw forbidden('parent_approval_needed', 'A parent needs to turn on Collect and Eat first.');
   if (!emitter.isOnline(them.id)) throw badRequest('player_offline', `${them.username} is not online.`);
-  if (playTimeOver(them)) throw badRequest('player_unavailable', `${them.username} can't play any more today.`);
   if (!hasEnergy(me)) throw badRequest('no_energy', 'You are out of energy. It refills one point every 20 minutes.');
   await assertMonsterFree(prisma, req.monsterAId, me.id);
   await assertMonsterFree(prisma, req.monsterBId, them.id);
@@ -182,9 +180,6 @@ export async function respondChallenge(userId: string, fightId: string, accept: 
   if (!stakesAreValid(stakeA, stake)) {
     throw badRequest('bad_stake', stakeA === 'bite' ? 'This is a Bite fight: both players must pick Bite.' : 'Bite needs both players to agree. Pick Collect or Eat.');
   }
-  const me = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
-  if (stake !== 'bite' && !me.allowRiskyStakes) throw forbidden('parent_approval_needed', 'A parent needs to turn on Collect and Eat first.');
-  if (playTimeOver(me)) throw forbidden('play_time_over');
 
   const seed = generateSeed();
   await transaction(async tx => {
@@ -385,11 +380,6 @@ export function onUserConnected(userId: string): void {
       delete f.graceTimers[side];
     }
   }
-}
-
-export function isInActiveFight(userId: string): boolean {
-  for (const f of live.values()) if (sideOf(f, userId) && ACTIVE.includes(f.state)) return true;
-  return false;
 }
 
 export function pendingChallengesFor(userId: string): FightView[] {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  CHAT_PHRASES, generateUsername, generateUsernameChoices, isGeneratedUsername, isMonsterNameAllowed,
+  CHAT_PHRASES, generateUsername, generateUsernameChoices, isUsernameAllowed, isMonsterNameAllowed,
   isNearbyRegion, isValidParts, MISSIONS, missionById, normaliseForFilter, PALETTE, PART_SLOT_NAMES, PART_SLOTS,
   phraseText, randomLook, regionById, REGIONS, SPECIES, startingSplitWithLuck, resolveFight, type MonsterParts, type Rng,
 } from '../src';
@@ -39,10 +39,7 @@ describe('usernames', () => {
   it('generates word-pair usernames', () => {
     expect(generateUsername(seq(0, 0, 0))).toBe('BraveBadger10');
     expect(generateUsername(seq(1, 1, 1))).toBe('ZippyYeti99');
-    expect(isGeneratedUsername(generateUsername())).toBe(true);
-    expect(isGeneratedUsername('BraveBadger1')).toBe(false);
-    expect(isGeneratedUsername('NastyBadger10')).toBe(false);
-    expect(isGeneratedUsername('hello')).toBe(false);
+    expect(isUsernameAllowed(generateUsername())).toBe(true);
   });
   it('generates distinct choices', () => {
     const c = generateUsernameChoices(5);
@@ -50,12 +47,21 @@ describe('usernames', () => {
   });
 });
 
+describe('username rules', () => {
+  it('allows 3 to 16 letters, digits and underscores', () => {
+    for (const n of ['Bob', 'grub_master', 'Zilla2000', 'A'.repeat(16)]) expect(isUsernameAllowed(n)).toBe(true);
+  });
+  it('rejects bad lengths, spaces, symbols and rude words', () => {
+    for (const n of ['ab', 'A'.repeat(17), 'two words', 'bob!', 'sh1t_head', 'big_butt']) expect(isUsernameAllowed(n)).toBe(false);
+  });
+});
+
 describe('monster name filter', () => {
   it('allows ordinary names', () => {
-    for (const n of ['Grubzilla', 'Mr Wiggles', 'Grape Ape', 'Shelly', 'Scrappy', 'Skillz', 'Hello', 'Rex 2']) expect(isMonsterNameAllowed(n)).toBe(true);
+    for (const n of ['Bob', 'Po', 'Grubzilla', 'Mr Wiggles', 'Grape Ape', 'Shelly', 'Scrappy', 'Skillz', 'Hello', 'Rex 2']) expect(isMonsterNameAllowed(n)).toBe(true);
   });
   it('blocks rude words, including spaced, repeated and number-swapped ones', () => {
-    for (const n of ['fuuuck', 'Sh1t head', 'b i t c h', 'Kill', 'big butt', 'Hell']) expect(isMonsterNameAllowed(n)).toBe(false);
+    for (const n of ['fuuuck', 'Sh1t head', 'b i t c h', 'Kill', 'big butt', 'Hell', 'Helll', 'a55hole']) expect(isMonsterNameAllowed(n)).toBe(false);
   });
   it('enforces length and characters', () => {
     expect(isMonsterNameAllowed('A')).toBe(false);
@@ -63,7 +69,7 @@ describe('monster name filter', () => {
     expect(isMonsterNameAllowed('Bob!')).toBe(false);
   });
   it('normalises lookalike characters', () => {
-    expect(normaliseForFilter('$h1t @ss')).toBe('shitas');
+    expect(normaliseForFilter('$h1t @ss')).toBe('shitass');
   });
 });
 

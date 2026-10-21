@@ -1,7 +1,31 @@
 import { Link } from 'react-router-dom';
-import { BALANCE } from '@mbc/shared';
-import { Title } from '../components/ui';
-import { useMe } from '../lib/session';
+import { BALANCE, collectionLimit, dojoSlots, graveyardLimit, type Me } from '@mbc/shared';
+import { Button, Panel, Title } from '../components/ui';
+import { post } from '../lib/api';
+import { useMe, useSession } from '../lib/session';
+import { sfx } from '../lib/sound';
+
+function Membership() {
+  const me = useMe();
+  const { run, setMe, toast } = useSession();
+  if (me.isMember) {
+    return <Panel className="mb-4 text-center"><span className="font-display text-xl">👑 You're a club member!</span> Bigger collection and graveyard, 2 dojo slots and member-only builder parts.</Panel>;
+  }
+  return (
+    <Panel className="mb-4 flex flex-wrap items-center justify-center gap-3 text-center">
+      <div>
+        <div className="font-display text-xl">👑 Club membership</div>
+        <p className="text-sm">
+          Collection {collectionLimit(false)} → {collectionLimit(true)} · graveyard {graveyardLimit(false)} → {graveyardLimit(true)} · dojo slots {dojoSlots(false)} → {dojoSlots(true)} · member-only builder parts. Forever. Never sells fight power.
+        </p>
+      </div>
+      <Button colour="gold" disabled={me.nuggets < BALANCE.membership.cost} onClick={async () => {
+        const r = await run(() => post<{ me: Me }>('/membership/buy'));
+        if (r) { setMe(r.me); sfx.win(); toast('Welcome to the club! 👑', 'good'); }
+      }}>Join · 🪙 {BALANCE.membership.cost}</Button>
+    </Panel>
+  );
+}
 
 export function Village() {
   const me = useMe();
@@ -18,6 +42,7 @@ export function Village() {
   return (
     <div>
       <Title sub="Spend your nuggets to make your monsters stronger.">🏘️ Monster Village</Title>
+      <Membership />
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {buildings.map(b => (
           <Link key={b.to} to={b.lock ? '#' : b.to} aria-disabled={!!b.lock}

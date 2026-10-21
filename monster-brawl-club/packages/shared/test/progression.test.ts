@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   applyXp, BALANCE, cardFrame, collectionLimit, currentEnergy, dojoSlots, dojoStrength, fightStrength,
   graveyardLimit, isValidSkillSpread, listingFee, msUntilNextEnergy, profileLevel, randomSkillSpread,
-  resurrectCost, resurrectedStrength, rollGrow, rollRarity, skillTotalForTier, xpToNextLevel, type Rng,
+  power, resurrectCost, resurrectedStrength, rollGrow, rollRarity, rollVariant, skillTotalForTier, variantMultiplier, VARIANTS, xpToNextLevel, type Rng,
 } from '../src';
 
 const seq = (...xs: number[]): Rng => () => xs.shift() ?? 0;
@@ -56,9 +56,9 @@ describe('growing', () => {
   });
 
   it('rolls strength inside the tier range, boosted by rarity', () => {
-    expect(rollGrow('standard', seq(0, 0, 0.5))).toEqual({ strength: 40, rarity: 'common', sheen: false });
+    expect(rollGrow('standard', seq(0, 0, 0.5))).toEqual({ strength: 40, rarity: 'common', variant: 'normal' });
     expect(rollGrow('standard', seq(1, 0, 0.5)).strength).toBe(80);
-    expect(rollGrow('super', seq(0, 0.995, 0))).toEqual({ strength: 120, rarity: 'legendary', sheen: true });
+    expect(rollGrow('super', seq(0, 0.995, 0))).toEqual({ strength: 120, rarity: 'legendary', variant: 'celestial' });
     expect(rollGrow('xtreme', seq(0, 0.8, 1)).strength).toBe(165);
     const r = rollGrow('standard');
     expect(r.strength).toBeGreaterThanOrEqual(40);
@@ -80,6 +80,43 @@ describe('growing', () => {
     expect(isValidSkillSpread(s, 'standard')).toBe(true);
     expect(randomSkillSpread(50, seq(1))).toEqual({ attack: 10, defense: 10, tricks: 10, brains: 10 });
     expect(Object.values(randomSkillSpread(16)).reduce((a, b) => a + b)).toBe(16);
+  });
+});
+
+describe('variants', () => {
+  const C = 1 / 100_000, V = 1 / 10_000, R = 1 / 1_000, S = 1 / 200;
+  it('rolls celestial 1/100000, void 1/10000, radioactive 1/1000, shiny 1/200', () => {
+    expect(rollVariant(0)).toBe('celestial');
+    expect(rollVariant(C * 0.99)).toBe('celestial');
+    expect(rollVariant(C * 1.01)).toBe('void');
+    expect(rollVariant(C + V * 0.99)).toBe('void');
+    expect(rollVariant(C + V + R * 0.99)).toBe('radioactive');
+    expect(rollVariant(C + V + R + S * 0.99)).toBe('shiny');
+    expect(rollVariant(C + V + R + S * 1.01)).toBe('normal');
+    expect(rollVariant(0.999)).toBe('normal');
+  });
+  it('lists variants from common to rarest', () => {
+    expect(VARIANTS).toEqual(['normal', 'shiny', 'radioactive', 'void', 'celestial']);
+  });
+  it('boosts power forever: shiny 1.5x, radioactive 2x, void 3x, celestial 5x', () => {
+    expect([variantMultiplier('normal'), variantMultiplier('shiny'), variantMultiplier('radioactive'), variantMultiplier('void'), variantMultiplier('celestial')]).toEqual([1, 1.5, 2, 3, 5]);
+    expect(power(80, 'normal')).toBe(80);
+    expect(power(80, 'shiny')).toBe(120);
+    expect(power(81, 'shiny')).toBe(122);
+    expect(power(80, 'celestial')).toBe(400);
+  });
+  it('keeps the boost at every level: a shiny stays 1.5x its plain twin', () => {
+    let plain = { level: 1, xp: 0, strength: 80, skillPoints: 0 };
+    let shiny = { ...plain };
+    for (let i = 0; i < 10; i++) {
+      plain = applyXp(plain, 200);
+      shiny = applyXp(shiny, 200);
+      expect(power(shiny.strength, 'shiny')).toBe(Math.round(plain.strength * 1.5));
+    }
+  });
+  it('stacks with the strength potion on the wheel', () => {
+    expect(fightStrength(100, false, 'shiny')).toBe(150);
+    expect(fightStrength(100, true, 'radioactive')).toBe(220);
   });
 });
 

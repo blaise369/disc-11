@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { generateUsernameChoices, isUsernameAllowed, USERNAME_MAX, USERNAME_MIN } from '@mbc/shared';
 import { z } from 'zod';
 import { createSession, destroySession, hashSecret, requireUser, verifySecret } from '../auth';
 import { prisma } from '../db';
@@ -6,31 +7,34 @@ import { badRequest, HttpError, parse } from '../errors';
 import { toMe } from '../views';
 
 export async function authRoutes(app: FastifyInstance): Promise<void> {
-  app.post('/auth/parent/signup', async (req, reply) => {
+  app.post('/auth/signup', async (req, reply) => {
     const body = parse(z.object({
-      email: z.string().trim().toLowerCase().email().max(200),
-      password: z.string().min(8, 'Password must be at least 8 characters').max(200),
-      pin: z.string().regex(/^\d{4}$/, 'PIN must be 4 digits'),
+      username: z.string().trim(),
+      password: z.string().min(6, 'Password must be at least 6 characters').max(200),
     }), req.body);
-    if (await prisma.user.findFirst({ where: { OR: [{ email: body.email }, { username: body.email }] } })) {
-      throw badRequest('email_taken', 'That email already has an account.');
+    if (!isUsernameAllowed(body.username)) {
+      throw badRequest('bad_username', `Pick a username of ${USERNAME_MIN} to ${USERNAME_MAX} letters, numbers or underscores.`);
     }
+    const taken = await prisma.user.findFirst({ where: { username: { equals: body.username, mode: 'insensitive' } } });
+    if (taken) throw badRequest('username_taken', 'That username is taken. Try another!');
     const user = await prisma.user.create({
-      data: {
-        username: body.email, email: body.email, role: 'parent', nuggets: 0,
-        passwordHash: await hashSecret(body.password), parentPinHash: await hashSecret(body.pin),
-      },
+      data: { username: body.username, role: 'player', passwordHash: await hashSecret(body.password) },
     });
     await createSession(reply, user.id);
     return { me: toMe(user) };
   });
 
+  app.get('/auth/username-suggestions', async () => {
+    const choices = generateUsernameChoices(10);
+    const taken = new Set((await prisma.user.findMany({ where: { username: { in: choices } }, select: { username: true } })).map(u => u.username));
+    return { choices: choices.filter(c => !taken.has(c)).slice(0, 5) };
+  });
+
   app.post('/auth/login', async (req, reply) => {
-    const body = parse(z.object({ login: z.string().trim().min(1).max(200), password: z.string().min(1).max(200) }), req.body);
-    const login = body.login.includes('@') ? body.login.toLowerCase() : body.login;
-    const user = await prisma.user.findFirst({ where: { OR: [{ username: login }, { email: login }] } });
-    if (!user || user.role === 'bot' || !(await verifySecret(body.password, user.passwordHash))) {
-      throw new HttpError(401, 'bad_login', 'That name and password do not match.');
+    const body = parse(z.object({ username: z.string().trim().min(1).max(200), password: z.string().min(1).max(200) }), req.body);
+    const user = await prisma.user.findUnique({ where: { username: body.username } });
+    if (!user || user.role !== 'player' || !(await verifySecret(body.password, user.passwordHash))) {
+      throw new HttpError(401, 'bad_login', 'That username and password do not match.');
     }
     await createSession(reply, user.id);
     return { me: toMe(user) };

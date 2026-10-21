@@ -7,10 +7,10 @@ import { STAKE_INFO, StakePicker } from './stakes';
 import { Button, Modal, useCountdown } from './ui';
 
 export function IncomingChallenge() {
-  const { incoming, socket, me, run, dismissIncoming } = useSession();
+  const { incoming, socket, run, dismissIncoming } = useSession();
   const f = incoming[0];
   const theirStake = (f?.a.stake ?? 'bite') as Stake;
-  const allowed: Stake[] = theirStake === 'bite' ? ['bite'] : me?.allowRiskyStakes ? ['collect', 'eat'] : [];
+  const allowed: Stake[] = theirStake === 'bite' ? ['bite'] : ['collect', 'eat'];
   const [stake, setStake] = useState<Stake>('bite');
   const [busy, setBusy] = useState(false);
   const left = useCountdown(f?.deadline ?? null);
@@ -37,17 +37,11 @@ export function IncomingChallenge() {
         Their stake: <b>{STAKE_INFO[theirStake].icon} {STAKE_INFO[theirStake].label}</b> · {f.roundsPlanned} skill round{f.roundsPlanned === 1 ? '' : 's'}
       </p>
       <p className="mb-2 text-center text-xs opacity-70">Each player's own stake decides what happens if <i>they</i> win.</p>
-      {allowed.length ? (
-        <>
-          <h3 className="font-display">Pick your stake</h3>
-          <StakePicker value={stake} onChange={setStake} allowed={allowed} />
-        </>
-      ) : (
-        <p className="rounded-xl bg-attack/15 p-2 text-center text-sm">This is a Collect/Eat fight, and a parent hasn't turned those on for you yet. You can only decline.</p>
-      )}
+      <h3 className="font-display">Pick your stake</h3>
+      <StakePicker value={stake} onChange={setStake} allowed={allowed} />
       <div className="mt-4 flex justify-center gap-3">
         <Button colour="grey" onClick={() => void respond(false)} disabled={busy}>Decline</Button>
-        <Button colour="green" onClick={() => void respond(true)} disabled={busy || !allowed.length} data-testid="accept-challenge">Accept!</Button>
+        <Button colour="green" onClick={() => void respond(true)} disabled={busy} data-testid="accept-challenge">Accept!</Button>
       </div>
     </Modal>
   );

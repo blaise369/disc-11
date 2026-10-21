@@ -4,12 +4,10 @@ import {
   BALANCE, phraseText,
   type ClientToServerEvents, type ServerToClientEvents, type Side,
 } from '@mbc/shared';
-import { playTimeOver, tokenFromCookieHeader, userFromToken } from '../auth';
-import { prisma } from '../db';
+import { tokenFromCookieHeader, userFromToken } from '../auth';
 import { HttpError } from '../errors';
 import { markOffline, markOnline, rateLimit } from '../redis';
 import { isBlockedEither } from '../services/social';
-import { dayKey } from '../time';
 import * as engine from './engine';
 
 type IO = Server<ClientToServerEvents, ServerToClientEvents, Record<string, never>, { userId: string }>;
@@ -50,8 +48,7 @@ export function createSocketServer(http: HttpServer): IO {
 
   io.use(async (socket, next) => {
     const user = await userFromToken(tokenFromCookieHeader(socket.handshake.headers.cookie));
-    if (!user || user.role !== 'child') return next(new Error('not_logged_in'));
-    if (playTimeOver(user)) return next(new Error('play_time_over'));
+    if (!user || user.role !== 'player') return next(new Error('not_logged_in'));
     socket.data.userId = user.id;
     next();
   });
@@ -104,24 +101,10 @@ export function createSocketServer(http: HttpServer): IO {
     });
   });
 
-  // Play-time tracking for parent caps, and presence refresh.
-  const tick = setInterval(() => void playTimeTick(io), BALANCE.playTime.tickSeconds * 1000);
+  // Keep online status fresh while connected.
+  const tick = setInterval(() => {
+    for (const userId of connections.keys()) void markOnline(userId);
+  }, BALANCE.presence.refreshSeconds * 1000);
   tick.unref();
   return io;
-}
-
-async function playTimeTick(io: IO): Promise<void> {
-  const today = dayKey();
-  for (const userId of connections.keys()) {
-    await markOnline(userId);
-    const u = await prisma.user.findUnique({ where: { id: userId } });
-    if (!u) continue;
-    const seconds = (u.playDay === today ? u.playSecondsToday : 0) + BALANCE.playTime.tickSeconds;
-    const updated = await prisma.user.update({ where: { id: userId }, data: { playDay: today, playSecondsToday: seconds } });
-    // Never cut a child off mid-fight (they'd lose it); stop them as soon as it ends.
-    if (playTimeOver(updated) && !engine.isInActiveFight(userId)) {
-      io.to(room(userId)).emit('playtime:over');
-      io.in(room(userId)).disconnectSockets(true);
-    }
-  }
 }

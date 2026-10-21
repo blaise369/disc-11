@@ -48,17 +48,12 @@ export class Client {
 }
 
 let n = 0;
-/** A parent with one child, with the given parent settings. */
-export async function makeChild(base: string, settings: { allowRiskyStakes?: boolean; allowTrades?: boolean } = {}) {
-  const parent = new Client(base);
-  await parent.ok('POST', '/auth/parent/signup', { email: `parent${Date.now()}${n++}@example.com`, password: 'password123', pin: '1234' });
-  const { choices } = await parent.ok<{ choices: string[] }>('GET', '/parent/username-choices');
-  const username = choices[0]!;
-  const { child } = await parent.ok<{ child: { id: string } }>('POST', '/parent/children', { username, password: 'kidpass1' });
-  if (Object.keys(settings).length) await parent.ok('PATCH', `/parent/children/${child.id}`, settings);
-  const kid = new Client(base);
-  await kid.ok('POST', '/auth/login', { login: username, password: 'kidpass1' });
-  return { parent, kid, username, id: child.id };
+/** Sign up a new player with a unique username. */
+export async function makePlayer(base: string) {
+  const client = new Client(base);
+  const username = `p${Date.now() % 1e9}_${n++}`;
+  const { me } = await client.ok<{ me: { id: string } }>('POST', '/auth/signup', { username, password: 'kidpass1' });
+  return { client, username, id: me.id };
 }
 
 export const LOOK = {
@@ -66,8 +61,8 @@ export const LOOK = {
   palette: { body: 1, accent: 4 },
 };
 
-export async function growStandard(kid: Client, name: string, skills = { attack: 3, defense: 3, tricks: 3, brains: 3 }) {
-  const { monster } = await kid.ok<{ monster: { id: string; strength: number } }>('POST', '/monsters/grow', { name, tier: 'standard', ...LOOK, skills });
+export async function growStandard(client: Client, name: string, skills = { attack: 3, defense: 3, tricks: 3, brains: 3 }) {
+  const { monster } = await client.ok<{ monster: { id: string; strength: number } }>('POST', '/monsters/grow', { name, tier: 'standard', ...LOOK, skills });
   return monster;
 }
 

@@ -5,7 +5,6 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { prisma } from './db';
 import { env } from './env';
 import { forbidden, HttpError } from './errors';
-import { dayKey } from './time';
 
 const scrypt = promisify(scryptCb) as (pw: string, salt: Buffer, len: number) => Promise<Buffer>;
 
@@ -62,28 +61,15 @@ export function tokenFromCookieHeader(header: string | undefined): string | unde
   return undefined;
 }
 
-export function playTimeOver(u: Pick<User, 'dailyPlayCapMinutes' | 'playDay' | 'playSecondsToday'>): boolean {
-  if (u.dailyPlayCapMinutes === null) return false;
-  const playedToday = u.playDay === dayKey() ? u.playSecondsToday : 0;
-  return playedToday >= u.dailyPlayCapMinutes * 60;
-}
-
 export async function requireUser(req: FastifyRequest): Promise<User> {
   const u = await userFromToken(req.cookies[SESSION_COOKIE]);
   if (!u) throw new HttpError(401, 'not_logged_in');
   return u;
 }
 
-/** Game routes: a child account inside its parent's play-time cap. */
-export async function requireChild(req: FastifyRequest): Promise<User> {
+/** Game routes: a logged-in player account. */
+export async function requirePlayer(req: FastifyRequest): Promise<User> {
   const u = await requireUser(req);
-  if (u.role !== 'child') throw forbidden('children_only', 'This is for player accounts. Parents use the parent centre.');
-  if (playTimeOver(u)) throw forbidden('play_time_over', "That's all the play time for today. See you tomorrow!");
-  return u;
-}
-
-export async function requireParent(req: FastifyRequest): Promise<User> {
-  const u = await requireUser(req);
-  if (u.role !== 'parent') throw forbidden('parents_only');
+  if (u.role !== 'player') throw forbidden('players_only');
   return u;
 }

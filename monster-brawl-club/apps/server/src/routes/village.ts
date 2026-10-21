@@ -3,14 +3,14 @@ import {
   applyXp, BALANCE, dojoSlots, dojoStrength, listingFee, profileLevel, resurrectCost, resurrectedStrength, STRATEGIES,
 } from '@mbc/shared';
 import { z } from 'zod';
-import { requireChild } from '../auth';
+import { requirePlayer } from '../auth';
 import { prisma, transaction } from '../db';
 import { badRequest, forbidden, notFound, parse } from '../errors';
 import { ensureMarketStock } from '../services/bots';
 import { bumpActivity, changeNuggets } from '../services/ledger';
 import { assertCollectionSpace, assertMonsterFree, raiseSkill } from '../services/monsters';
 import { dayKey } from '../time';
-import { loadCard, loadCards } from '../views';
+import { loadCard, loadCards, toMe } from '../views';
 
 type Op = '+' | '-' | 'x';
 interface Question { a: number; b: number; op: Op }
@@ -35,7 +35,7 @@ async function arcadeEarnedToday(userId: string): Promise<number> {
 export async function villageRoutes(app: FastifyInstance): Promise<void> {
   // ---------- Potion shop ----------
   app.post('/potions/buy', async req => {
-    const me = await requireChild(req);
+    const me = await requirePlayer(req);
     const body = parse(z.object({
       monsterId: z.string(),
       type: z.enum(['strengthBoost', 'luckyCharm', 'skillPlusOne']),
@@ -58,13 +58,13 @@ export async function villageRoutes(app: FastifyInstance): Promise<void> {
 
   // ---------- Dojo ----------
   app.get('/dojo', async req => {
-    const me = await requireChild(req);
+    const me = await requirePlayer(req);
     const training = await loadCards(prisma, { ownerId: me.id, status: 'alive', dojoUntil: { not: null } });
     return { slots: dojoSlots(me.isMember), training, unlocked: profileLevel(me.profileXp) >= BALANCE.profileUnlocks.dojoLevel };
   });
 
   app.post('/dojo/start', async req => {
-    const me = await requireChild(req);
+    const me = await requirePlayer(req);
     if (profileLevel(me.profileXp) < BALANCE.profileUnlocks.dojoLevel) throw forbidden('locked', `The dojo opens at profile level ${BALANCE.profileUnlocks.dojoLevel}.`);
     const body = parse(z.object({ monsterId: z.string(), reward: z.enum(['skill', 'strength']) }), req.body);
     await transaction(async tx => {
@@ -78,7 +78,7 @@ export async function villageRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.post('/dojo/collect', async req => {
-    const me = await requireChild(req);
+    const me = await requirePlayer(req);
     const { monsterId } = parse(z.object({ monsterId: z.string() }), req.body);
     await transaction(async tx => {
       const m = await tx.monster.findUnique({ where: { id: monsterId } });
@@ -99,7 +99,7 @@ export async function villageRoutes(app: FastifyInstance): Promise<void> {
 
   // ---------- Graveyard ----------
   app.post('/graveyard/:id/resurrect', async req => {
-    const me = await requireChild(req);
+    const me = await requirePlayer(req);
     const id = (req.params as { id: string }).id;
     await transaction(async tx => {
       const m = await tx.monster.findUnique({ where: { id } });
@@ -112,7 +112,7 @@ export async function villageRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.post('/graveyard/:id/incinerate', async req => {
-    const me = await requireChild(req);
+    const me = await requirePlayer(req);
     const id = (req.params as { id: string }).id;
     await transaction(async tx => {
       const m = await tx.monster.findUnique({ where: { id } });
@@ -125,7 +125,7 @@ export async function villageRoutes(app: FastifyInstance): Promise<void> {
 
   // ---------- Market ----------
   app.get('/market', async req => {
-    await requireChild(req);
+    await requirePlayer(req);
     await ensureMarketStock();
     const listings = await prisma.marketListing.findMany({ where: { state: 'open' }, orderBy: { createdAt: 'desc' }, take: 60 });
     const cards = new Map((await loadCards(prisma, { id: { in: listings.map(l => l.monsterId) } })).map(c => [c.id, c]));
@@ -135,7 +135,7 @@ export async function villageRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.post('/market/list', async req => {
-    const me = await requireChild(req);
+    const me = await requirePlayer(req);
     const body = parse(z.object({ monsterId: z.string(), price: z.number().int().min(BALANCE.market.minPrice).max(BALANCE.market.maxPrice) }), req.body);
     const listing = await transaction(async tx => {
       await assertMonsterFree(tx, body.monsterId, me.id);
@@ -148,7 +148,7 @@ export async function villageRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.post('/market/:id/buy', async req => {
-    const me = await requireChild(req);
+    const me = await requirePlayer(req);
     const id = (req.params as { id: string }).id;
     const monsterId = await transaction(async tx => {
       const l = await tx.marketListing.findUnique({ where: { id } });
@@ -167,28 +167,39 @@ export async function villageRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.post('/market/:id/cancel', async req => {
-    const me = await requireChild(req);
+    const me = await requirePlayer(req);
     const id = (req.params as { id: string }).id;
     const n = await prisma.marketListing.updateMany({ where: { id, sellerId: me.id, state: 'open' }, data: { state: 'cancelled' } });
     if (!n.count) throw notFound('listing_not_found');
     return { ok: true };
   });
 
+  // ---------- Club membership (bought with nuggets, permanent) ----------
+  app.post('/membership/buy', async req => {
+    const me = await requirePlayer(req);
+    if (me.isMember) throw badRequest('already_member', "You're already in the club!");
+    const user = await transaction(async tx => {
+      await changeNuggets(tx, me.id, -BALANCE.membership.cost, 'membership');
+      return tx.user.update({ where: { id: me.id }, data: { isMember: true } });
+    });
+    return { me: toMe(user) };
+  });
+
   // ---------- Arcade: Maths Sprint ----------
   app.get('/arcade', async req => {
-    const me = await requireChild(req);
+    const me = await requirePlayer(req);
     return { earnedToday: await arcadeEarnedToday(me.id), maxPerDay: BALANCE.arcade.maxPerDay, maxPerGame: BALANCE.arcade.maxPerGame };
   });
 
   app.post('/arcade/start', async req => {
-    const me = await requireChild(req);
+    const me = await requirePlayer(req);
     const questions = makeQuestions(BALANCE.arcade.questionsPerGame);
     const game = await prisma.arcadeGame.create({ data: { userId: me.id, questions: questions as unknown as object } });
     return { gameId: game.id, questions: questions.map(q => ({ a: q.a, b: q.b, op: q.op })), seconds: BALANCE.arcade.secondsPerGame };
   });
 
   app.post('/arcade/:id/finish', async req => {
-    const me = await requireChild(req);
+    const me = await requirePlayer(req);
     const { answers } = parse(z.object({ answers: z.array(z.number().int().nullable()).max(50) }), req.body);
     const id = (req.params as { id: string }).id;
     return transaction(async tx => {

@@ -49,7 +49,6 @@ export function Trader() {
   useEffect(() => { const w = params.get('with'); if (w) void chooseFriend(w); }, [params, chooseFriend]);
 
   if (!me.unlocks.trader) return <Empty>🔒 The trader opens at profile level {BALANCE.profileUnlocks.traderLevel}. You are level {me.profileLevel}.</Empty>;
-  if (!me.allowTrades) return <Empty>🔒 A parent needs to switch on trading in the parent centre first.</Empty>;
   if (!trades || !data) return <Loading />;
   const toggle = (list: string[], set: (v: string[]) => void, id: string) =>
     set(list.includes(id) ? list.filter(x => x !== id) : list.length < BALANCE.trader.maxMonstersPerSide ? [...list, id] : list);

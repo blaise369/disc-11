@@ -1,7 +1,7 @@
 // Layered SVG monster art. Every part is drawn here in code and recoloured from the
 // palette, so ~60 parts combine into thousands of monsters. Canvas: 200x200, ground y≈185.
 import { memo, useId, type ReactNode } from 'react';
-import { PALETTE, type MonsterPalette, type MonsterParts } from '@mbc/shared';
+import { PALETTE, type MonsterPalette, type MonsterParts, type Variant } from '@mbc/shared';
 
 interface Anchors {
   top: number;
@@ -478,9 +478,26 @@ export interface MonsterArtProps {
   ko?: boolean | undefined;
   idle?: boolean | undefined;
   className?: string | undefined;
+  variant?: Variant | undefined;
 }
 
-function MonsterArtImpl({ parts, palette, flip, ko = false, idle = false, className = '' }: MonsterArtProps) {
+const SPARKLES: [number, number, number][] = [[12, 22, 0], [80, 14, 0.6], [86, 62, 1.1], [8, 70, 0.3], [50, 6, 1.4]];
+
+/** Decorative layers behind and around rare-variant monsters. */
+function VariantLayers({ variant }: { variant: Variant }) {
+  if (variant === 'normal') return null;
+  if (variant === 'radioactive') {
+    return <>{[18, 36, 54, 72].map((x, i) => <span key={x} className="v-layer v-particle" style={{ left: `${x}%`, bottom: '18%', animationDelay: `${i * 0.6}s` }} />)}</>;
+  }
+  const stars = SPARKLES.map(([x, y, d]) => (
+    <span key={`${x}${y}`} className="v-layer v-sparkle text-sm" style={{ left: `${x}%`, top: `${y}%`, animationDelay: `${d}s`, color: variant === 'void' ? '#e6d4ff' : '#fff3a8' }}>✦</span>
+  ));
+  if (variant === 'void') return <>{stars}</>;
+  if (variant === 'celestial') return <><span className="v-layer v-halo" />{stars}</>;
+  return <>{stars}</>;
+}
+
+function MonsterArtImpl({ parts, palette, flip, ko = false, idle = false, className = '', variant = 'normal' }: MonsterArtProps) {
   const uid = useId().replace(/:/g, '');
   const sp = SPECIES[parts.species] ?? SPECIES.furball!;
   const body = PALETTE[palette.body] ?? PALETTE[0];
@@ -494,7 +511,8 @@ function MonsterArtImpl({ parts, palette, flip, ko = false, idle = false, classN
   const mirror = (node: ReactNode) => <>{node}<g transform="translate(200 0) scale(-1 1)">{node}</g></>;
 
   return (
-    <div className={`${idle ? 'monster-idle' : ''} ${className}`}>
+    <div className={`relative ${idle ? 'monster-idle' : ''} ${variant !== 'normal' && !ko ? `variant-${variant}` : ''} ${className}`}>
+      {variant === 'void' && !ko && <span className="v-layer v-vortex" />}
       <svg viewBox="-24 -54 248 256" className="block h-full w-full overflow-visible" role="img" aria-label={`${parts.species} monster`}>
         <defs>
           <clipPath id={`clip-${uid}`}><path d={sp.shape} /></clipPath>
@@ -514,6 +532,7 @@ function MonsterArtImpl({ parts, palette, flip, ko = false, idle = false, classN
           {(MOUTHS[parts.mouth] ?? MOUTHS.grin!)(c)}
         </g>
       </svg>
+      {!ko && <VariantLayers variant={variant} />}
     </div>
   );
 }

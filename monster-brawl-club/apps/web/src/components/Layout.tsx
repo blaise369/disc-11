@@ -27,7 +27,7 @@ export function Toasts() {
 }
 
 export function GameLayout() {
-  const { me, logout, playTimeOver } = useSession();
+  const { me, logout } = useSession();
   const [muted, setM] = useState(isMuted());
   useTick(1000);
   if (!me) return null;
@@ -65,16 +65,6 @@ export function GameLayout() {
         ))}
       </nav>
       <IncomingChallenge />
-      {playTimeOver && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-night/95 p-6 text-center">
-          <div className="panel max-w-md p-6">
-            <div className="text-6xl">🌙</div>
-            <h2 className="font-display text-3xl">That's all for today!</h2>
-            <p className="mt-2">You've used up today's play time. Your monsters are having a nap. See you tomorrow!</p>
-            <button className="btn mt-4 bg-defense" onClick={() => void logout()}>Log out</button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

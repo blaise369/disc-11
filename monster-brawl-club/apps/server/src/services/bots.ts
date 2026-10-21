@@ -1,5 +1,5 @@
 import {
-  BALANCE, randomLook, randomSkillSpread, REGIONS, rollRarity, type Rng, type Skills,
+  BALANCE, power, randomLook, randomSkillSpread, REGIONS, rollRarity, rollVariant, type Rng, type Skills, type Variant,
 } from '@mbc/shared';
 import { prisma, type Db } from '../db';
 import { hashSecret } from '../auth';
@@ -52,6 +52,8 @@ async function createBotMonster(db: Db, ownerId: string, spec: BotSpec): Promise
       ownerId, name: spec.name, species: look.parts.species, parts: { ...look.parts }, palette: { ...look.palette },
       strength: spec.strength, atk: spec.skills.attack, def: spec.skills.defense, tricks: spec.skills.tricks, brains: spec.skills.brains,
       level: spec.level ?? 1, rarity: spec.botRole === 'boss' ? 'legendary' : rollRarity(spec.rng()),
+      // Market stock can roll rare variants like any grown monster; arena bots stay plain.
+      variant: spec.botRole === 'market' ? rollVariant(spec.rng()) : 'normal',
       botRole: spec.botRole, botRegion: spec.botRegion,
     },
   });
@@ -96,7 +98,8 @@ export async function ensureMarketStock(): Promise<void> {
       name: botName(rng), strength, skills: randomSkillSpread(12 + Math.floor(rng() * 6), rng),
       rng, botRole: 'market', botRegion: region.id,
     });
-    await prisma.marketListing.create({ data: { sellerId: market, monsterId, price: Math.round(strength * 3 + 40) } });
+    const { variant } = await prisma.monster.findUniqueOrThrow({ where: { id: monsterId }, select: { variant: true } });
+    await prisma.marketListing.create({ data: { sellerId: market, monsterId, price: Math.round(power(strength, variant as Variant) * 3 + 40) } });
   }
 }
 

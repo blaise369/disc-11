@@ -1,10 +1,10 @@
 import type { Monster, PotionActive, Prisma, User } from '@prisma/client';
 import {
-  BALANCE, cardFrame, collectionLimit, currentEnergy, graveyardLimit, msUntilNextEnergy, profileLevel, xpToNextLevel,
-  type Me, type MonsterCard, type MonsterPalette, type MonsterParts, type MonsterStatus, type PotionType, type Rarity,
+  BALANCE, cardFrame, collectionLimit, currentEnergy, graveyardLimit, msUntilNextEnergy, power, profileLevel, xpToNextLevel,
+  type Me, type MonsterCard, type MonsterPalette, type MonsterParts, type MonsterStatus, type PotionType, type Rarity, type Variant,
 } from '@mbc/shared';
 import type { Db } from './db';
-import { dayKey, sameUtcDay } from './time';
+import { sameUtcDay } from './time';
 
 type MonsterRow = Monster & { owner: { username: string; role: string }; potions: PotionActive[] };
 
@@ -17,9 +17,10 @@ export function toCard(m: MonsterRow, listed = false): MonsterCard {
     id: m.id, ownerId: m.ownerId, ownerName: m.owner.username, name: m.name, species: m.species,
     parts: m.parts as unknown as MonsterParts, palette: m.palette as unknown as MonsterPalette,
     strength: m.strength,
+    power: power(m.strength, m.variant as Variant),
     skills: { attack: m.atk, defense: m.def, tricks: m.tricks, brains: m.brains },
     skillPoints: m.skillPoints, level: m.level, xp: m.xp, xpToNext: Number.isFinite(toNext) ? toNext : null,
-    rarity: m.rarity as Rarity, sheen: m.sheen, status: m.status as MonsterStatus,
+    rarity: m.rarity as Rarity, variant: m.variant as Variant, status: m.status as MonsterStatus,
     wins: m.wins, losses: m.losses, frame: cardFrame(m.level),
     growingUntil: m.readyAt.getTime() > now ? m.readyAt.toISOString() : null,
     locked: m.lockedFightId !== null,
@@ -57,11 +58,8 @@ export function toMe(u: User): Me {
     energy: e.energy, energyMax: BALANCE.energy.max, nextEnergyMs: msUntilNextEnergy(e, now),
     profileXp: u.profileXp, profileLevel: level, isMember: u.isMember, mapRegion: u.mapRegion,
     unlocks: { trader: level >= BALANCE.profileUnlocks.traderLevel, dojo: level >= BALANCE.profileUnlocks.dojoLevel },
-    allowTrades: u.allowTrades, allowRiskyStakes: u.allowRiskyStakes,
     dailyRewardAvailable: !sameUtcDay(u.lastDailyReward),
     standardGrowAvailable: !sameUtcDay(u.lastStandardGrow),
-    playSecondsToday: u.playDay === dayKey() ? u.playSecondsToday : 0,
-    dailyPlayCapMinutes: u.dailyPlayCapMinutes,
     collectionLimit: collectionLimit(u.isMember), graveyardLimit: graveyardLimit(u.isMember),
   };
 }

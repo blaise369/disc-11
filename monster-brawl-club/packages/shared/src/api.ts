@@ -1,10 +1,10 @@
 // Types shared by the REST API, the Socket.IO events and the web client. Types only.
 import type { MonsterPalette, MonsterParts } from './parts';
-import type { CardFrame, GrowTier, Rarity } from './progression';
+import type { CardFrame, GrowTier, Rarity, Variant } from './progression';
 import type { Stake, StakeOutcome } from './stakes';
 import type { Side, Skills, Strategy } from './strategy';
 
-export type Role = 'child' | 'parent' | 'bot';
+export type Role = 'player' | 'bot';
 export type MonsterStatus = 'alive' | 'graveyard' | 'incinerated';
 export type FightKind = 'pvp' | 'practice' | 'boss';
 export type FightStake = Stake | 'none';
@@ -21,14 +21,17 @@ export interface MonsterCard {
   species: string;
   parts: MonsterParts;
   palette: MonsterPalette;
+  /** Base strength: what stakes, levels and the dojo change. */
   strength: number;
+  /** Strength times the variant boost: what the wheel uses. */
+  power: number;
   skills: Skills;
   skillPoints: number;
   level: number;
   xp: number;
   xpToNext: number | null;
   rarity: Rarity;
-  sheen: boolean;
+  variant: Variant;
   status: MonsterStatus;
   wins: number;
   losses: number;
@@ -56,12 +59,8 @@ export interface Me {
   isMember: boolean;
   mapRegion: number;
   unlocks: { trader: boolean; dojo: boolean };
-  allowTrades: boolean;
-  allowRiskyStakes: boolean;
   dailyRewardAvailable: boolean;
   standardGrowAvailable: boolean;
-  playSecondsToday: number;
-  dailyPlayCapMinutes: number | null;
   collectionLimit: number;
   graveyardLimit: number;
 }
@@ -72,7 +71,6 @@ export interface PlayerSummary {
   mapRegion: number;
   profileLevel: number;
   online: boolean;
-  allowRiskyStakes: boolean;
 }
 
 export interface PlayerProfile extends PlayerSummary {
@@ -165,7 +163,6 @@ export interface ServerToClientEvents {
   'fight:state': (fight: FightView) => void;
   'chat:phrase': (m: { fightId: string; side: Side; text: string }) => void;
   'me:update': () => void;
-  'playtime:over': () => void;
 }
 
 export interface ClientToServerEvents {

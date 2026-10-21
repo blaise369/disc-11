@@ -12,15 +12,10 @@ datasource db {
 
 model User {
   id               String    @id @default(cuid())
-  /// Children: generated word-pair name. Parents: their email. Bots: fixed name.
   username         String    @unique
-  email            String?   @unique
   passwordHash     String
-  /// child | parent | bot
+  /// player | bot
   role             String
-  parentId         String?
-  parent           User?     @relation("ParentChild", fields: [parentId], references: [id])
-  children         User[]    @relation("ParentChild")
   nuggets          Int       @default(100)
   energy           Int       @default(10)
   energyUpdatedAt  DateTime  @default(now())
@@ -29,14 +24,6 @@ model User {
   mapRegion        Int       @default(1)
   lastDailyReward  DateTime?
   lastStandardGrow DateTime?
-  /// Parent controls (stored on the child). Trades and Collect/Eat are off until a parent approves.
-  allowTrades      Boolean   @default(false)
-  allowRiskyStakes Boolean   @default(false)
-  dailyPlayCapMinutes Int?
-  playSecondsToday Int       @default(0)
-  playDay          String    @default("")
-  /// Parent only: PIN needed for purchases.
-  parentPinHash    String?
   createdAt        DateTime  @default(now())
 
   sessions         Session[]
@@ -73,7 +60,8 @@ model Monster {
   xp            Int      @default(0)
   /// common | rare | epic | legendary
   rarity        String
-  sheen         Boolean  @default(false)
+  /// normal | shiny | radioactive | void | celestial: a forever boost to wheel strength
+  variant       String   @default("normal")
   /// alive | graveyard | incinerated
   status        String   @default("alive")
   wins          Int      @default(0)
@@ -197,7 +185,6 @@ model Friendship {
 model Block {
   blockerId String
   blockedId String
-  byParent  Boolean  @default(false)
   createdAt DateTime @default(now())
 
   @@id([blockerId, blockedId])

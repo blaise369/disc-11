@@ -6,7 +6,6 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { HttpError } from './errors';
 import { createSocketServer } from './realtime/socket';
 import { authRoutes } from './routes/auth';
-import { parentRoutes } from './routes/parent';
 import { gameRoutes } from './routes/game';
 import { villageRoutes } from './routes/village';
 import { socialRoutes } from './routes/social';
@@ -25,7 +24,6 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<{ app: 
   });
 
   await app.register(authRoutes, { prefix: '/api' });
-  await app.register(parentRoutes, { prefix: '/api' });
   await app.register(gameRoutes, { prefix: '/api' });
   await app.register(villageRoutes, { prefix: '/api' });
   await app.register(socialRoutes, { prefix: '/api' });

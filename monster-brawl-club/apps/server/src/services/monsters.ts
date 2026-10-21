@@ -4,7 +4,7 @@ import {
   type GrowRequest, type Strategy,
 } from '@mbc/shared';
 import type { Db, Tx } from '../db';
-import { badRequest, forbidden, notFound } from '../errors';
+import { badRequest, notFound } from '../errors';
 import { sameUtcDay } from '../time';
 import { changeNuggets } from './ledger';
 
@@ -55,7 +55,7 @@ export async function growMonster(tx: Tx, userId: string, req: GrowRequest): Pro
   return tx.monster.create({
     data: {
       ownerId: userId, name, species: req.parts.species, parts: { ...req.parts }, palette: { ...req.palette },
-      strength: roll.strength, rarity: roll.rarity, sheen: roll.sheen,
+      strength: roll.strength, rarity: roll.rarity, variant: roll.variant,
       atk: req.skills.attack, def: req.skills.defense, tricks: req.skills.tricks, brains: req.skills.brains,
       readyAt: new Date(Date.now() + tier.growMinutes * 60_000),
     },
@@ -75,8 +75,4 @@ export async function raiseSkill(tx: Tx, m: Monster, strategy: Strategy): Promis
   const col = skillColumn(strategy);
   if (m[col] >= BALANCE.skills.max) throw badRequest('skill_maxed', 'That skill is already at 10.');
   await tx.monster.update({ where: { id: m.id }, data: { [col]: { increment: 1 } } });
-}
-
-export function assertChildCan(flag: boolean, what: string): void {
-  if (!flag) throw forbidden('parent_approval_needed', `A parent needs to turn on ${what} first.`);
 }

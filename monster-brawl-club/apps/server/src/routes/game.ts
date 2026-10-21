@@ -5,7 +5,7 @@ import {
 } from '@mbc/shared';
 import type { User } from '@prisma/client';
 import { z } from 'zod';
-import { requireChild, requireUser } from '../auth';
+import { requirePlayer, requireUser } from '../auth';
 import { prisma, transaction } from '../db';
 import { badRequest, notFound, parse } from '../errors';
 import { dbFightView, fightView } from '../realtime/engine';
@@ -29,7 +29,7 @@ const growSchema = z.object({
 function summary(u: User, online: Set<string>): PlayerSummary {
   return {
     id: u.id, username: u.username, mapRegion: u.mapRegion, profileLevel: profileLevel(u.profileXp),
-    online: online.has(u.id), allowRiskyStakes: u.allowRiskyStakes,
+    online: online.has(u.id),
   };
 }
 
@@ -50,7 +50,7 @@ async function record(userId: string): Promise<{ wins: number; losses: number }>
 export async function gameRoutes(app: FastifyInstance): Promise<void> {
   // ---------- Monsters ----------
   app.get('/monsters', async req => {
-    const me = await requireChild(req);
+    const me = await requirePlayer(req);
     const [alive, graveyard] = await Promise.all([
       loadCards(prisma, { ownerId: me.id, status: 'alive' }),
       loadCards(prisma, { ownerId: me.id, status: 'graveyard' }),
@@ -66,14 +66,14 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.post('/monsters/grow', async req => {
-    const me = await requireChild(req);
+    const me = await requirePlayer(req);
     const body = parse(growSchema, req.body);
     const m = await transaction(tx => growMonster(tx, me.id, body));
     return { monster: await loadCard(prisma, m.id) };
   });
 
   app.post('/monsters/:id/skill', async req => {
-    const me = await requireChild(req);
+    const me = await requirePlayer(req);
     const { strategy: s } = parse(z.object({ strategy }), req.body);
     const id = (req.params as { id: string }).id;
     await transaction(tx => spendSkillPoint(tx, me.id, id, s));
@@ -82,7 +82,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
 
   // ---------- Daily reward ----------
   app.post('/daily', async req => {
-    const me = await requireChild(req);
+    const me = await requirePlayer(req);
     const user = await transaction(async tx => {
       const u = await tx.user.findUniqueOrThrow({ where: { id: me.id } });
       if (sameUtcDay(u.lastDailyReward)) throw badRequest('already_claimed', 'Come back tomorrow for more nuggets!');
@@ -95,13 +95,13 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
 
   // ---------- Players ----------
   app.get('/players/nearby', async req => {
-    const me = await requireChild(req);
+    const me = await requirePlayer(req);
     const blocked = await blockedIds(me.id);
     const friends = await prisma.friendship.findMany({ where: { status: 'accepted', OR: [{ userId: me.id }, { friendId: me.id }] } });
     const friendIds = friends.map(f => (f.userId === me.id ? f.friendId : f.userId));
     const candidates = await prisma.user.findMany({
       where: {
-        role: 'child', id: { not: me.id },
+        role: 'player', id: { not: me.id },
         OR: [{ mapRegion: { gte: me.mapRegion - 1, lte: me.mapRegion + 1 } }, { id: { in: friendIds } }],
       },
       take: 500,
@@ -115,9 +115,9 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.get('/players/:username', async req => {
-    const me = await requireChild(req);
+    const me = await requirePlayer(req);
     const u = await prisma.user.findUnique({ where: { username: (req.params as { username: string }).username } });
-    if (!u || u.role !== 'child') throw notFound('player_not_found');
+    if (!u || u.role !== 'player') throw notFound('player_not_found');
     const [monsters, rec, online, friendship, block] = await Promise.all([
       loadCards(prisma, { ownerId: u.id, status: 'alive' }, 'strength'),
       record(u.id),
@@ -136,7 +136,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
 
   // ---------- Fights ----------
   app.get('/fights', async req => {
-    const me = await requireChild(req);
+    const me = await requirePlayer(req);
     const rows = await prisma.fight.findMany({
       where: { OR: [{ challengerId: me.id }, { defenderId: me.id }], state: { in: ['RESOLVED', 'ABANDONED'] } },
       include: { rounds: true }, orderBy: { createdAt: 'desc' }, take: 30,
@@ -151,14 +151,14 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
 
   // ---------- Map ladder ----------
   app.get('/map', async req => {
-    const me = await requireChild(req);
+    const me = await requirePlayer(req);
     const bosses = await loadCards(prisma, { botRole: 'boss' }, 'strength');
     return { mapRegion: me.mapRegion, regions: REGIONS, bosses: bosses.sort((a, b) => a.strength - b.strength) };
   });
 
   // ---------- Missions ----------
   app.get('/missions', async req => {
-    const me = await requireChild(req);
+    const me = await requirePlayer(req);
     const day = dayKey();
     const [activity, claims] = await Promise.all([
       prisma.activity.findMany({ where: { userId: me.id, day } }),
@@ -172,7 +172,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.post('/missions/:id/claim', async req => {
-    const me = await requireChild(req);
+    const me = await requirePlayer(req);
     const mission = MISSIONS.find(m => m.id === (req.params as { id: string }).id);
     if (!mission) throw notFound('mission_not_found');
     const day = dayKey();

@@ -9,11 +9,11 @@ export function Friends() {
   const { run, toast } = useSession();
   const navigate = useNavigate();
   const [data, setData] = useState<{ friends: PlayerSummary[]; incoming: PlayerSummary[]; outgoing: PlayerSummary[] } | null>(null);
-  const [blocks, setBlocks] = useState<(PlayerSummary & { byParent: boolean })[]>([]);
+  const [blocks, setBlocks] = useState<PlayerSummary[]>([]);
   const [name, setName] = useState('');
   const load = useCallback(async () => {
     setData(await get('/friends'));
-    setBlocks((await get<{ blocks: (PlayerSummary & { byParent: boolean })[] }>('/blocks')).blocks);
+    setBlocks((await get<{ blocks: PlayerSummary[] }>('/blocks')).blocks);
   }, []);
   useEffect(() => void load(), [load]);
   if (!data) return <Loading />;
@@ -62,7 +62,7 @@ export function Friends() {
         {blocks.length === 0 ? <p className="text-sm opacity-70">Nobody.</p> : blocks.map(b => (
           <div key={b.id} className="mt-1 flex items-center justify-between">
             <span>{b.username}</span>
-            {b.byParent ? <span className="text-xs opacity-60">blocked by a parent</span> : <button className="underline" onClick={async () => { await run(() => del(`/blocks/${b.id}`)); await load(); }}>Unblock</button>}
+            <button className="underline" onClick={async () => { await run(() => del(`/blocks/${b.id}`)); await load(); }}>Unblock</button>
           </div>
         ))}
       </Panel>

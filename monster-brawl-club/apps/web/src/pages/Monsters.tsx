@@ -4,6 +4,7 @@ import { STRATEGIES, type MonsterCard as Card } from '@mbc/shared';
 import { MonsterArt } from '../art/MonsterArt';
 import { isFree, MonsterCard } from '../components/MonsterCard';
 import { SkillBars, STRATEGY_INFO } from '../components/strategy';
+import { VARIANT_INFO, variantLabel } from '../components/variants';
 import { Button, Empty, Loading, Modal, Title } from '../components/ui';
 import { get, post } from '../lib/api';
 import { useMe, useSession } from '../lib/session';
@@ -21,13 +22,14 @@ export function MonsterDetail({ m, onClose, onChanged }: { m: Card; onClose: () 
   return (
     <Modal open onClose={onClose} wide>
       <div className="grid gap-4 sm:grid-cols-[1fr_1.2fr]">
-        <div className={`rounded-2xl border-[3px] border-black bg-gradient-to-b from-[#bfe6ff] to-[#e9f7ff] p-4 ${m.sheen ? 'sheen' : ''}`}>
-          <MonsterArt parts={m.parts} palette={m.palette} idle />
+        <div className={`rounded-2xl border-[3px] border-black bg-gradient-to-b from-[#bfe6ff] to-[#e9f7ff] p-4 ${m.variant !== 'normal' ? 'sheen' : ''}`}>
+          <MonsterArt parts={m.parts} palette={m.palette} idle variant={m.variant} />
         </div>
         <div>
           <h2 className="font-display text-3xl">{m.name}</h2>
-          <p className="text-sm capitalize opacity-70">{m.rarity}{m.sheen ? ' ✨ shiny' : ''} {m.species} · Level {m.level} · {m.frame} frame</p>
-          <div className="my-2 font-display text-4xl text-flame text-outline">💪 {m.strength}</div>
+          <p className="text-sm capitalize opacity-70">{m.rarity} {m.species} · Level {m.level} · {m.frame} frame</p>
+          {m.variant !== 'normal' && <span className={`chip mt-1 inline-block ${VARIANT_INFO[m.variant].chip}`}>{variantLabel(m.variant)} strength, forever</span>}
+          <div className="my-2 font-display text-4xl text-flame text-outline">💪 {m.power}{m.power !== m.strength && <span className="ml-2 align-middle font-sans text-sm text-ink [text-shadow:none]">base {m.strength}</span>}</div>
           <SkillBars skills={m.skills} />
           {m.xpToNext !== null && (
             <div className="mt-2 text-xs">XP {m.xp} / {m.xpToNext} to level {m.level + 1}</div>

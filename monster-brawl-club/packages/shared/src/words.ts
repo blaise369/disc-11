@@ -14,7 +14,7 @@ const NOUNS = [
 
 const pick = <T>(rng: Rng, list: readonly T[]): T => list[Math.min(list.length - 1, Math.floor(rng() * list.length))]!;
 
-/** A safe generated username: two words plus two digits. Children never type their own. */
+/** A suggested username: two words plus two digits. */
 export function generateUsername(rng: Rng = Math.random): string {
   const n = Math.min(99, Math.floor(rng() * 90) + 10);
   return `${pick(rng, ADJECTIVES)}${pick(rng, NOUNS)}${n}`;
@@ -26,13 +26,17 @@ export function generateUsernameChoices(count: number, rng: Rng = Math.random): 
   return [...out];
 }
 
-export function isGeneratedUsername(name: string): boolean {
-  const m = /^([A-Z][a-z]+)([A-Z][a-z]+)(\d{2})$/.exec(name);
-  return m !== null && ADJECTIVES.includes(m[1]!) && NOUNS.includes(m[2]!);
+export const USERNAME_MIN = 3;
+export const USERNAME_MAX = 16;
+
+/** Usernames: 3 to 16 letters, digits or underscores, passing the same word filter as monster names. */
+export function isUsernameAllowed(name: string): boolean {
+  if (name.length < USERNAME_MIN || name.length > USERNAME_MAX || !/^[A-Za-z0-9_]+$/.test(name)) return false;
+  return isMonsterNameAllowed(name.replace(/_/g, ' '));
 }
 
 // Substrings blocked in monster names. Matched case-insensitively after stripping
-// spaces, digits used as letters and repeated letters.
+// spaces and mapping digits used as letters.
 const BLOCKED = [
   'fuck', 'shit', 'bitch', 'cunt', 'dick', 'cock', 'pussy', 'penis', 'vagina', 'sex', 'porn', 'nazi',
   'hitler', 'slut', 'whore', 'fag', 'nigg', 'retard', 'bastard', 'asshole',
@@ -48,8 +52,7 @@ export function normaliseForFilter(name: string): string {
   return name
     .toLowerCase()
     .replace(/[01345@$7]/g, c => LEET[c]!)
-    .replace(/[^a-z]/g, '')
-    .replace(/(.)\1+/g, '$1');
+    .replace(/[^a-z]/g, '');
 }
 
 /** Monster names: 2 to 16 letters, digits or spaces, passing the word filter. */
@@ -57,11 +60,18 @@ export function isMonsterNameAllowed(name: string): boolean {
   const trimmed = name.trim();
   if (trimmed.length < 2 || trimmed.length > MONSTER_NAME_MAX) return false;
   if (!/^[A-Za-z0-9 ]+$/.test(trimmed)) return false;
-  const collapse = (w: string) => w.replace(/(.)\1+/g, '$1');
-  const norm = normaliseForFilter(trimmed);
-  if (BLOCKED.some(w => norm.includes(collapse(w)))) return false;
+  // Check each name as typed and with stretched letters squashed ("fuuuck"). Blocked words
+  // are never squashed themselves, so "Bob" doesn't match "boob".
+  const forms = (s: string) => {
+    const raw = normaliseForFilter(s);
+    return [raw, raw.replace(/(.)\1+/g, '$1')];
+  };
+  if (forms(trimmed).some(f => BLOCKED.some(w => f.includes(w)))) return false;
+  // Whole words: also match stretched spellings ("Helll"), but only when the word is at
+  // least as long as the blocked one, so "Po" doesn't match "poo".
+  const squash = (w: string) => w.replace(/(.)\1+/g, '$1');
   const words = trimmed.split(/\s+/).map(normaliseForFilter);
-  return !words.some(w => BLOCKED_WORDS.some(b => w === collapse(b)));
+  return !words.some(w => BLOCKED_WORDS.some(b => w === b || (w.length >= b.length && squash(w) === squash(b))));
 }
 
 /** Fixed chat phrases. Players can only send these ids, never free text. */

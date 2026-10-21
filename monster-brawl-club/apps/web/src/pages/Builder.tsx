@@ -133,7 +133,7 @@ export function Builder() {
                 );
               })}
             </div>
-            <p className="mt-2 text-xs opacity-70">Rarity is rolled when it grows: Rare +10%, Epic +25%, Legendary +50% strength. 1 in 200 are shiny!</p>
+            <p className="mt-2 text-xs opacity-70">Rarity is rolled when it grows: Rare +10%, Epic +25%, Legendary +50% strength. Rare variants boost strength forever: ✨ Shiny ×1.5 (1 in 200), ☢️ Radioactive ×2 (1 in 1,000), 🕳️ Void ×3 (1 in 10,000), 🌟 Celestial ×5 (1 in 100,000)!</p>
           </Panel>
 
           <Panel>

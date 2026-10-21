@@ -71,7 +71,17 @@ export const BALANCE = {
     epic: { chance: 0.07, strengthBonus: 0.25 },
     legendary: { chance: 0.01, strengthBonus: 0.5 },
   },
-  sheenChance: 1 / 200,
+  /**
+   * Rare variants rolled when a monster grows, rarest first. The multiplier is a forever
+   * boost to the strength used on the wheel, at every level: a shiny is always 1.5x the
+   * same monster without the shine.
+   */
+  variants: {
+    celestial: { chance: 1 / 100_000, multiplier: 5 },
+    void: { chance: 1 / 10_000, multiplier: 3 },
+    radioactive: { chance: 1 / 1_000, multiplier: 2 },
+    shiny: { chance: 1 / 200, multiplier: 1.5 },
+  },
 
   levels: {
     max: 20,
@@ -120,8 +130,10 @@ export const BALANCE = {
     /** Seconds a disconnected player has to come back before the fight counts as abandoned. */
     reconnectGraceSeconds: 20,
   },
-  playTime: {
-    /** Heartbeat granularity for parent play-time caps. */
-    tickSeconds: 60,
+  /** Permanent club membership, bought with nuggets in the village. */
+  membership: { cost: 1500 },
+  presence: {
+    /** How often a connected player's online status is refreshed. */
+    refreshSeconds: 60,
   },
 } as const;

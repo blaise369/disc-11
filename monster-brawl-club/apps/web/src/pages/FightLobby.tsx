@@ -104,8 +104,6 @@ export function FightLobby() {
     });
   }, [mode]);
 
-  const riskyOk = me.allowRiskyStakes && !!opponent?.allowRiskyStakes;
-  const allowedStakes: Stake[] = riskyOk ? ['bite', 'collect', 'eat'] : ['bite'];
 
   const startBot = async () => {
     if (!socket || !mine) return;
@@ -173,8 +171,7 @@ export function FightLobby() {
                 {opponent.monsters.map(m => <MonsterCard key={m.id} m={m} size="sm" flip dim={!isFree(m)} selected={m.id === theirs} onClick={isFree(m) ? () => setTheirs(m.id) : undefined} />)}
               </div>
               <h3 className="font-display">3. Your stake</h3>
-              <StakePicker value={stake} onChange={setStake} allowed={allowedStakes} />
-              {!riskyOk && <p className="text-xs opacity-70">Collect and Eat need a parent's OK for both players. Bite only for now.</p>}
+              <StakePicker value={stake} onChange={setStake} allowed={['bite', 'collect', 'eat']} />
               <p className="text-xs opacity-70">{STAKE_INFO[stake].risk}</p>
               <RoundsPicker value={rounds} onChange={setRounds} />
               <Button colour="red" size="lg" disabled={!myMonster || !theirs || busy || me.energy < BALANCE.energy.perPvpFight} onClick={() => void challenge()} data-testid="send-challenge">

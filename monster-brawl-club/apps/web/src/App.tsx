@@ -8,6 +8,7 @@ import { Dojo } from './pages/Dojo';
 import { FightLobby } from './pages/FightLobby';
 import { FightScreen } from './pages/FightScreen';
 import { Friends } from './pages/Friends';
+import { FinisherPreview } from './pages/FinisherPreview';
 import { Gallery } from './pages/Gallery';
 import { Graveyard } from './pages/Graveyard';
 import { History } from './pages/History';
@@ -15,7 +16,6 @@ import { Landing } from './pages/Landing';
 import { MapPage } from './pages/MapPage';
 import { Market } from './pages/Market';
 import { Monsters } from './pages/Monsters';
-import { Parent } from './pages/Parent';
 import { CardPage, Player } from './pages/Player';
 import { Potions } from './pages/Potions';
 import { Trader } from './pages/Trader';
@@ -27,14 +27,9 @@ function Gate() {
   return (
     <Routes>
       <Route path="/gallery" element={<Gallery />} />
+      <Route path="/finishers" element={<FinisherPreview />} />
       {!me && <Route path="*" element={<Landing />} />}
-      {me?.role === 'parent' && (
-        <>
-          <Route path="/parent" element={<Parent />} />
-          <Route path="*" element={<Navigate to="/parent" replace />} />
-        </>
-      )}
-      {me?.role === 'child' && (
+      {me && (
         <Route element={<GameLayout />}>
           <Route path="/map" element={<MapPage />} />
           <Route path="/monsters" element={<Monsters />} />

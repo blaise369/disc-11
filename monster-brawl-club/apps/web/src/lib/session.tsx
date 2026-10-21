@@ -20,7 +20,6 @@ interface Session {
   socket: GameSocket | null;
   incoming: FightView[];
   dismissIncoming: (fightId: string) => void;
-  playTimeOver: boolean;
   toast: (text: string, kind?: Toast['kind']) => void;
   toasts: Toast[];
   /** Run an action, toasting any error message. Returns undefined on failure. */
@@ -35,7 +34,7 @@ export function useSession(): Session {
   return s;
 }
 
-/** The logged-in child account (pages under the game layout only render for children). */
+/** The logged-in player (pages under the game layout only render when logged in). */
 export function useMe(): Me {
   const { me } = useSession();
   if (!me) throw new Error('useMe without a session');
@@ -47,7 +46,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [socket, setSocket] = useState<GameSocket | null>(null);
   const [incoming, setIncoming] = useState<FightView[]>([]);
-  const [playTimeOver, setPlayTimeOver] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const navigate = useNavigate();
   const location = useLocation();
@@ -75,7 +73,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     try {
       return await fn();
     } catch (e) {
-      if (e instanceof ApiError && e.code === 'play_time_over') setPlayTimeOver(true);
       toast(e instanceof Error ? e.message : 'Something went wrong.', 'error');
       return undefined;
     }
@@ -85,10 +82,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     void refresh();
   }, [refresh]);
 
-  // One socket per logged-in child.
-  const childId = me?.role === 'child' ? me.id : null;
+  // One socket per logged-in player.
+  const playerId = me?.id ?? null;
   useEffect(() => {
-    if (!childId) return;
+    if (!playerId) return;
     const s = connectSocket();
     s.on('challenge:incoming', f => {
       sfx.challenge();
@@ -105,29 +102,24 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       }
     });
     s.on('me:update', () => void refresh());
-    s.on('playtime:over', () => setPlayTimeOver(true));
-    s.on('connect_error', err => {
-      if (err.message === 'play_time_over') setPlayTimeOver(true);
-    });
     setSocket(s);
     return () => {
       s.disconnect();
       setSocket(null);
     };
-  }, [childId, navigate, refresh]);
+  }, [playerId, navigate, refresh]);
 
   const logout = useCallback(async () => {
     await post('/auth/logout');
     setMe(null);
     setIncoming([]);
-    setPlayTimeOver(false);
     navigate('/');
   }, [navigate]);
 
   const value = useMemo<Session>(() => ({
-    me, loading, refresh, setMe, logout, socket, incoming, playTimeOver, toast, toasts, run,
+    me, loading, refresh, setMe, logout, socket, incoming, toast, toasts, run,
     dismissIncoming: id => setIncoming(list => list.filter(x => x.id !== id)),
-  }), [me, loading, refresh, logout, socket, incoming, playTimeOver, toast, toasts, run]);
+  }), [me, loading, refresh, logout, socket, incoming, toast, toasts, run]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
