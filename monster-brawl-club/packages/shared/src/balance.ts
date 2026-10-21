@@ -77,7 +77,18 @@ export const BALANCE = {
     max: 20,
     strengthBonusPerLevel: 0.04,
     skillPointsPerLevel: 1,
+    /** XP to go from level L to L+1 is xpBase + xpPerLevel * (L - 1). */
+    xpBase: 40,
+    xpPerLevel: 20,
   },
+
+  profile: {
+    /** Account XP (sum of all monster XP earned) per profile level. */
+    xpPerLevel: 150,
+  },
+
+  /** Card frame by monster level: the frame applies from this level up. */
+  cardFrames: { bronze: 1, silver: 5, gold: 10, cosmic: 15 },
 
   collection: { freeLimit: 12, memberLimit: 40 },
 
@@ -95,12 +106,22 @@ export const BALANCE = {
     luckyCharm: { cost: 80, wheelShare: 0.03, fights: 1 },
   },
 
-  dojo: { minutes: 30, cost: 25, skillPoints: 1, strengthShare: 0.03 },
-  arcade: { maxPerGame: 20, maxPerDay: 200 },
-  market: { listingFee: 0.05 },
-  trader: { tradesPerPairPerHour: 1 },
+  dojo: { minutes: 30, cost: 25, skillPoints: 1, strengthShare: 0.03, xp: 20, freeSlots: 1, memberSlots: 2 },
+  arcade: { maxPerGame: 20, maxPerDay: 200, questionsPerGame: 10, nuggetsPerCorrect: 2, secondsPerGame: 60 },
+  market: { listingFee: 0.05, botListings: 6, minPrice: 10, maxPrice: 100000 },
+  trader: { tradesPerPairPerHour: 1, maxMonstersPerSide: 3 },
   energy: { max: 10, perPvpFight: 1, refillMinutes: 20 },
   mapLadder: { regions: 10 },
   profileUnlocks: { traderLevel: 3, dojoLevel: 5 },
-  rateLimits: { challengesPerMinute: 10 },
+  rateLimits: { challengesPerMinute: 10, tradesPerMinute: 10 },
+  fightTiming: {
+    /** Seconds the reveal stays on screen before the next round. */
+    revealSeconds: 3,
+    /** Seconds a disconnected player has to come back before the fight counts as abandoned. */
+    reconnectGraceSeconds: 20,
+  },
+  playTime: {
+    /** Heartbeat granularity for parent play-time caps. */
+    tickSeconds: 60,
+  },
 } as const;

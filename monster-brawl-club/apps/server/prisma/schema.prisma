@@ -1,0 +1,255 @@
+// Monster Brawl Club data model. String "enums" are validated in code against
+// packages/shared so client, server and database share one vocabulary.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String    @id @default(cuid())
+  /// Children: generated word-pair name. Parents: their email. Bots: fixed name.
+  username         String    @unique
+  email            String?   @unique
+  passwordHash     String
+  /// child | parent | bot
+  role             String
+  parentId         String?
+  parent           User?     @relation("ParentChild", fields: [parentId], references: [id])
+  children         User[]    @relation("ParentChild")
+  nuggets          Int       @default(100)
+  energy           Int       @default(10)
+  energyUpdatedAt  DateTime  @default(now())
+  profileXp        Int       @default(0)
+  isMember         Boolean   @default(false)
+  mapRegion        Int       @default(1)
+  lastDailyReward  DateTime?
+  lastStandardGrow DateTime?
+  /// Parent controls (stored on the child). Trades and Collect/Eat are off until a parent approves.
+  allowTrades      Boolean   @default(false)
+  allowRiskyStakes Boolean   @default(false)
+  dailyPlayCapMinutes Int?
+  playSecondsToday Int       @default(0)
+  playDay          String    @default("")
+  /// Parent only: PIN needed for purchases.
+  parentPinHash    String?
+  createdAt        DateTime  @default(now())
+
+  sessions         Session[]
+  monsters         Monster[]
+  ledger           LedgerEntry[]
+  fightsChallenged Fight[]   @relation("Challenger")
+  fightsDefended   Fight[]   @relation("Defender")
+  activity         Activity[]
+}
+
+model Session {
+  id        String   @id
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model Monster {
+  id            String   @id @default(cuid())
+  ownerId       String
+  owner         User     @relation(fields: [ownerId], references: [id])
+  name          String
+  species       String
+  parts         Json
+  palette       Json
+  strength      Int
+  atk           Int
+  def           Int
+  tricks        Int
+  brains        Int
+  skillPoints   Int      @default(0)
+  level         Int      @default(1)
+  xp            Int      @default(0)
+  /// common | rare | epic | legendary
+  rarity        String
+  sheen         Boolean  @default(false)
+  /// alive | graveyard | incinerated
+  status        String   @default("alive")
+  wins          Int      @default(0)
+  losses        Int      @default(0)
+  /// Still growing until this time.
+  readyAt       DateTime @default(now())
+  /// Set while the monster is in an accepted fight, so it can't be traded or fight twice.
+  lockedFightId String?
+  dojoUntil     DateTime?
+  /// skill | strength
+  dojoReward    String?
+  /// Bots only: practice | boss | market, and the region they belong to.
+  botRole       String?
+  botRegion     Int?
+  createdAt     DateTime @default(now())
+
+  potions       PotionActive[]
+
+  @@index([ownerId, status])
+}
+
+model Fight {
+  id              String    @id @default(cuid())
+  /// pvp | practice | boss
+  kind            String
+  challengerId    String
+  challenger      User      @relation("Challenger", fields: [challengerId], references: [id])
+  defenderId      String
+  defender        User      @relation("Defender", fields: [defenderId], references: [id])
+  monsterAId      String
+  monsterBId      String
+  /// bite | collect | eat | none
+  stakeA          String
+  stakeB          String?
+  roundsPlanned   Int
+  pStart          Float?
+  pFinal          Float?
+  seedHash        String?
+  seed            String?
+  roll            Float?
+  winnerMonsterId String?
+  /// PENDING, ACCEPTED, ROUND_PICKING, ROUND_REVEAL, SPINNING, RESOLVED, DECLINED, EXPIRED, ABANDONED
+  state           String
+  /// Snapshot of names, art and stats at fight time, plus the result for history screens.
+  snapshot        Json?
+  outcome         Json?
+  createdAt       DateTime  @default(now())
+  resolvedAt      DateTime?
+
+  rounds          FightRound[]
+
+  @@index([challengerId, createdAt])
+  @@index([defenderId, createdAt])
+}
+
+model FightRound {
+  fightId String
+  fight   Fight  @relation(fields: [fightId], references: [id], onDelete: Cascade)
+  roundNo Int
+  pickA   String
+  pickB   String
+  /// A | B | tie
+  winner  String
+  delta   Float
+
+  @@id([fightId, roundNo])
+}
+
+model PotionActive {
+  id         String  @id @default(cuid())
+  monsterId  String
+  monster    Monster @relation(fields: [monsterId], references: [id], onDelete: Cascade)
+  /// strengthBoost | luckyCharm
+  potionType String
+  fightsLeft Int
+}
+
+model Trade {
+  id             String   @id @default(cuid())
+  fromUserId     String
+  toUserId       String
+  fromMonsterIds String[]
+  toMonsterIds   String[]
+  /// Each side confirms twice: 0, 1 or 2.
+  fromConfirms   Int      @default(0)
+  toConfirms     Int      @default(0)
+  /// open | completed | cancelled
+  state          String   @default("open")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([fromUserId])
+  @@index([toUserId])
+}
+
+model MarketListing {
+  id        String   @id @default(cuid())
+  sellerId  String
+  monsterId String
+  price     Int
+  /// open | sold | cancelled
+  state     String   @default("open")
+  buyerId   String?
+  createdAt DateTime @default(now())
+
+  @@index([state])
+}
+
+model Friendship {
+  id        String   @id @default(cuid())
+  /// The user who sent the request.
+  userId    String
+  friendId  String
+  /// pending | accepted
+  status    String   @default("pending")
+  createdAt DateTime @default(now())
+
+  @@unique([userId, friendId])
+}
+
+model Block {
+  blockerId String
+  blockedId String
+  byParent  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@id([blockerId, blockedId])
+}
+
+model Report {
+  id         String   @id @default(cuid())
+  reporterId String
+  reportedId String
+  fightId    String?
+  reason     String
+  createdAt  DateTime @default(now())
+}
+
+/// Every nugget change, ever.
+model LedgerEntry {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  amount    Int
+  reason    String
+  refId     String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model ArcadeGame {
+  id         String    @id @default(cuid())
+  userId     String
+  questions  Json
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  correct    Int?
+  reward     Int?
+}
+
+/// Daily counters for missions (fightsPlayed, fightsWon, ...).
+model Activity {
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  metric String
+  day    String
+  count  Int    @default(0)
+
+  @@id([userId, metric, day])
+}
+
+model MissionClaim {
+  userId    String
+  missionId String
+  day       String
+
+  @@id([userId, missionId, day])
+}

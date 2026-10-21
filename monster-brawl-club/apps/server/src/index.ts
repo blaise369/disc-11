@@ -1,5 +1,9 @@
-// Placeholder until Milestone 4 (live PvP over Socket.IO).
-// Importing the shared package here proves the workspace wiring typechecks.
-import { startingSplit } from '@mbc/shared';
+import { buildApp } from './app';
+import { env } from './env';
+import { recoverStaleFights } from './realtime/engine';
+import { ensureBots } from './services/bots';
 
-export const sampleSplit = startingSplit(120, 180);
+await recoverStaleFights();
+await ensureBots();
+const { app } = await buildApp({ logger: true });
+await app.listen({ port: env.port, host: '0.0.0.0' });

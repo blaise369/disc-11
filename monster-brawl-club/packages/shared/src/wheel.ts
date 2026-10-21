@@ -16,6 +16,14 @@ export function startingSplit(strengthA: number, strengthB: number): number {
   return clamp(raw, BALANCE.fight.startSplitMin, BALANCE.fight.startSplitMax);
 }
 
+/**
+ * Starting split with one-fight Lucky Charm bonuses (wheel share added for each side),
+ * still clamped to the starting range.
+ */
+export function startingSplitWithLuck(strengthA: number, strengthB: number, luckA = 0, luckB = 0): number {
+  return clamp(startingSplit(strengthA, strengthB) + luckA - luckB, BALANCE.fight.startSplitMin, BALANCE.fight.startSplitMax);
+}
+
 export function assertRoundCount(n: number): void {
   const f = BALANCE.fight;
   if (!Number.isInteger(n) || n < f.minSkillRounds || n > f.maxSkillRounds) {

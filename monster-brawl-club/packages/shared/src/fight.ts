@@ -1,5 +1,5 @@
 import type { RoundPick, Side } from './strategy';
-import { playRounds, spinWinner, startingSplit, type WheelResult } from './wheel';
+import { playRounds, spinWinner, startingSplitWithLuck, type WheelResult } from './wheel';
 
 export interface FightInput {
   strengthA: number;
@@ -8,6 +8,9 @@ export interface FightInput {
   picks: ReadonlyArray<{ a: RoundPick; b: RoundPick }>;
   /** The spin roll in [0, 1), e.g. from rollFromSeed. */
   roll: number;
+  /** Lucky Charm wheel share for each side (default 0). */
+  luckA?: number;
+  luckB?: number;
 }
 
 export interface FightResult extends WheelResult {
@@ -18,8 +21,8 @@ export interface FightResult extends WheelResult {
 }
 
 /** Resolve a whole fight: starting split, skill rounds, spin. */
-export function resolveFight({ strengthA, strengthB, picks, roll }: FightInput): FightResult {
-  const wheel = playRounds(startingSplit(strengthA, strengthB), picks);
+export function resolveFight({ strengthA, strengthB, picks, roll, luckA = 0, luckB = 0 }: FightInput): FightResult {
+  const wheel = playRounds(startingSplitWithLuck(strengthA, strengthB, luckA, luckB), picks);
   return {
     ...wheel,
     roll,

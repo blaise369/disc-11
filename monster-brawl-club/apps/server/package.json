@@ -4,10 +4,30 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "echo \"@mbc/server: no tests until a later milestone\"",
-    "coverage": "echo \"@mbc/server: no tests until a later milestone\"",
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "db:push": "prisma db push --skip-generate",
+    "db:generate": "prisma generate",
+    "test": "vitest run",
+    "coverage": "vitest run",
     "typecheck": "tsc -p tsconfig.json"
   },
-  "dependencies": { "@mbc/shared": "workspace:*" },
-  "devDependencies": { "typescript": "^5.6.3" }
+  "dependencies": {
+    "@fastify/cookie": "^11.0.2",
+    "@fastify/static": "^8.2.0",
+    "@mbc/shared": "workspace:*",
+    "@prisma/client": "^6.19.3",
+    "fastify": "^5.6.0",
+    "ioredis": "^5.11.1",
+    "socket.io": "^4.8.1",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "prisma": "^6.19.3",
+    "socket.io-client": "^4.8.1",
+    "tsx": "^4.20.0",
+    "typescript": "^5.6.3",
+    "vitest": "^3.2.4"
+  }
 }
