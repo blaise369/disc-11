@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Beastie Brawl</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Luckiest+Guy&family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="logo">Beastie<span>Brawl</span></div>
+    <div class="topbar-right">
+      <div class="coins" title="Fangs (money)">🦷 <b id="coin-count">0</b></div>
+      <button class="icon-btn" id="mute-btn" title="Toggle sound">🔊</button>
+      <button class="icon-btn" id="menu-btn" title="Settings">⚙️</button>
+    </div>
+  </header>
+
+  <main id="app">
+    <!-- HATCH: create your beastie -->
+    <section class="screen" id="screen-hatch">
+      <h1 class="title">Hatch your Beastie!</h1>
+      <p class="sub">Every egg holds a one-of-a-kind monster. Don't like this one? Roll another egg.</p>
+      <div class="hatch-wrap">
+        <div class="stage hatch-stage"><div id="hatch-preview" class="monster idle"></div></div>
+        <div class="panel hatch-form">
+          <label for="hatch-name">Name your beastie</label>
+          <div class="row">
+            <input id="hatch-name" maxlength="16" autocomplete="off" placeholder="e.g. Grubzilla">
+            <button class="btn small" id="hatch-randname" title="Random name">🎲</button>
+          </div>
+          <button class="btn alt" id="hatch-reroll">🥚 Roll a new egg</button>
+          <button class="btn big" id="hatch-go">Hatch it!</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- LAIR: home base -->
+    <section class="screen" id="screen-lair">
+      <div class="lair-grid">
+        <div class="panel lair-monster">
+          <div class="stage"><div id="lair-art" class="monster idle"></div></div>
+          <h2 id="lair-name" class="mname"></h2>
+          <div class="lvl-line">Level <b id="lair-level"></b> · <span id="lair-record"></span></div>
+          <div class="bar xp"><div id="lair-xp"></div><span id="lair-xp-text"></span></div>
+        </div>
+        <div class="panel lair-stats">
+          <h3>Stats <span id="lair-points" class="badge"></span></h3>
+          <div id="stat-list"></div>
+          <h3>Battle moves <small>(pick up to 4)</small></h3>
+          <div id="move-loadout" class="chips"></div>
+          <h3>Wardrobe</h3>
+          <div id="wardrobe" class="chips"></div>
+        </div>
+      </div>
+      <nav class="main-nav">
+        <button class="btn big fight" data-go="select">⚔️ Fight</button>
+        <button class="btn big" data-go="train">🏋️ Train</button>
+        <button class="btn big" data-go="shop">🛒 Shop</button>
+      </nav>
+    </section>
+
+    <!-- OPPONENT SELECT -->
+    <section class="screen" id="screen-select">
+      <div class="screen-head">
+        <button class="btn small alt" data-go="lair">← Lair</button>
+        <h1 class="title">Pick a fight</h1>
+        <button class="btn small alt" id="reroll-foes">🔄 New foes</button>
+      </div>
+      <div id="foe-list" class="card-row"></div>
+    </section>
+
+    <!-- BATTLE -->
+    <section class="screen" id="screen-battle">
+      <div class="arena">
+        <div class="hud">
+          <div class="hud-side" id="hud-you">
+            <div class="hud-name"></div>
+            <div class="bar hp"><div></div><span></span></div>
+            <div class="bar en"><div></div><span></span></div>
+          </div>
+          <div class="vs">VS</div>
+          <div class="hud-side right" id="hud-foe">
+            <div class="hud-name"></div>
+            <div class="bar hp"><div></div><span></span></div>
+            <div class="bar en"><div></div><span></span></div>
+          </div>
+        </div>
+        <div class="fighters">
+          <div class="fighter you" id="fighter-you"><div class="monster idle"></div></div>
+          <div class="fighter foe" id="fighter-foe"><div class="monster idle"></div></div>
+        </div>
+        <div class="floor"></div>
+      </div>
+      <div class="battle-bottom">
+        <div id="battle-log" class="log"></div>
+        <div class="controls">
+          <div id="move-buttons" class="move-grid"></div>
+          <div class="row">
+            <button class="btn small alt" id="items-btn">🎒 Items</button>
+            <button class="btn small danger" id="forfeit-btn">🏳️ Run away</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TRAIN -->
+    <section class="screen" id="screen-train">
+      <div class="screen-head">
+        <button class="btn small alt" data-go="lair">← Lair</button>
+        <h1 class="title">Training Gym</h1>
+        <span></span>
+      </div>
+      <p class="sub">Each session costs <b id="train-cost"></b> fangs. Do well in the mini-game to earn up to +3 to a stat.</p>
+      <div class="card-row" id="train-list"></div>
+    </section>
+
+    <!-- SHOP -->
+    <section class="screen" id="screen-shop">
+      <div class="screen-head">
+        <button class="btn small alt" data-go="lair">← Lair</button>
+        <h1 class="title">Gristle's Goods</h1>
+        <span></span>
+      </div>
+      <div class="tabs" id="shop-tabs">
+        <button class="tab active" data-tab="moves">Moves</button>
+        <button class="tab" data-tab="items">Items</button>
+        <button class="tab" data-tab="hats">Hats</button>
+      </div>
+      <div id="shop-list" class="shop-grid"></div>
+    </section>
+  </main>
+
+  <!-- Timing meter overlay (used for attacks, blocks and training) -->
+  <div id="meter" class="overlay hidden">
+    <div class="meter-box">
+      <div class="meter-title" id="meter-title"></div>
+      <div class="meter-track">
+        <div class="meter-zone" id="meter-zone"></div>
+        <div class="meter-needle" id="meter-needle"></div>
+      </div>
+      <div class="meter-hint">Click, tap or press <kbd>Space</kbd> when the needle hits the green zone!</div>
+      <div class="meter-result" id="meter-result"></div>
+    </div>
+  </div>
+
+  <!-- Generic modal -->
+  <div id="modal" class="overlay hidden">
+    <div class="modal-box" id="modal-box"></div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script src="js/data.js"></script>
+  <script src="js/art.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>
