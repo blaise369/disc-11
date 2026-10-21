@@ -1,0 +1,13 @@
+{
+  "name": "@mbc/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "echo \"@mbc/web: no tests until a later milestone\"",
+    "coverage": "echo \"@mbc/web: no tests until a later milestone\"",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": { "@mbc/shared": "workspace:*" },
+  "devDependencies": { "typescript": "^5.6.3" }
+}
