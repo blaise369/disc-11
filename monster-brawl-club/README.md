@@ -13,7 +13,23 @@ All six milestones of the spec are built. The spec's parent accounts and parenta
 | 5. Village and economy | Nugget ledger, potion shop, dojo timers, market, trader, Maths Sprint arcade, energy, daily missions, 10-region map ladder with boss bots |
 | 6. Safety and polish | Phrase-only chat, block and report, sound, a finishing move for every body type, mobile layout |
 
-## Running it
+## Play it
+
+The easiest way is [Docker Desktop](https://www.docker.com/products/docker-desktop/) (free for personal use). Install it, start it, then in a terminal:
+
+```sh
+git clone https://github.com/blaise369/disc-11.git
+cd disc-11
+git checkout claude/fight-my-monster-remake-2zc9r1
+cd monster-brawl-club
+docker compose up --build
+```
+
+The first build takes a few minutes. When the log says the server is listening, open **http://localhost:3001**, pick a username and play. Stop it with Ctrl+C; your monsters are kept for next time (`docker compose down -v` wipes them).
+
+To play against a friend on the same Wi-Fi, they open `http://<your computer's IP>:3001`. Each player needs their own account, and you can challenge each other from the Fight page.
+
+## Running it for development
 
 You need Node 20+, pnpm, PostgreSQL and Redis.
 

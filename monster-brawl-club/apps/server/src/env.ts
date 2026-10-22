@@ -10,5 +10,7 @@ export const env = {
   redisUrl: process.env.REDIS_URL ?? 'redis://localhost:6379',
   port: Number(process.env.PORT ?? 3001),
   production: process.env.NODE_ENV === 'production',
+  /** Secure (HTTPS-only) cookies. On by default in production; turn off to play over plain http://localhost. */
+  secureCookies: process.env.COOKIE_SECURE ? process.env.COOKIE_SECURE === 'true' : process.env.NODE_ENV === 'production',
 };
 process.env.DATABASE_URL = env.databaseUrl;

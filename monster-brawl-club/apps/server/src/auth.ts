@@ -34,7 +34,7 @@ export async function createSession(reply: FastifyReply, userId: string): Promis
     data: { id: tokenId(token), userId, expiresAt: new Date(Date.now() + SESSION_DAYS * 86_400_000) },
   });
   reply.setCookie(SESSION_COOKIE, token, {
-    httpOnly: true, sameSite: 'lax', secure: env.production, path: '/', maxAge: SESSION_DAYS * 86_400,
+    httpOnly: true, sameSite: 'lax', secure: env.secureCookies, path: '/', maxAge: SESSION_DAYS * 86_400,
   });
 }
 
