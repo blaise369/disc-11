@@ -1,26 +1,30 @@
-// One finishing move per body type. The WINNER's species decides how the loser goes out.
-// Everything is cartoon: monsters get squashed, zapped, carried off or turned to ash with
-// blinking eyes, never hurt in a gory way.
+// One signature attack per body type. The WINNER's species decides the attack. Each has
+// two endings: `eat` (the loser is destroyed: eaten, engulfed, turned to ash...) and
+// `spare` (the loser is released and recovers, ready for a bite, a capture or a K.O.).
+// Everything is cartoon: never gory.
 import { Container, Graphics, Text } from 'pixi.js';
 import { sfx } from '../../lib/sound';
 import { easeIn, easeInOut, easeOut, easeOutBack, lerp, Pool, rand, seg, type Kit } from './kit';
 
 export type Step = (t: number, dt: number) => void;
+export type Ending = 'eat' | 'spare';
 export interface FinisherDef {
   name: string;
-  duration: number;
-  run: (k: Kit) => Step;
+  duration: Record<Ending, number>;
+  run: (k: Kit, ending: Ending) => Step;
 }
 
 const offscreen = (k: Kit, d: number, margin: number) => (d > 0 ? k.W + margin : -margin);
+/** A little bounce: 0 → up → 0 over p in [0, 1]. */
+const hop = (p: number, height: number) => -Math.sin(Math.min(1, Math.max(0, p)) * Math.PI) * height;
 
 // ---------------------------------------------------------------- slime
 const slime: FinisherDef = {
   name: 'Gloop Engulf',
-  duration: 3.4,
-  run(k) {
+  duration: { eat: 3.4, spare: 2.9 },
+  run(k, ending) {
     const L = k.lose.box, Wn = k.win.box;
-    const gw = L.w * 1.4, gh = L.h * 1.05;
+    const gw = L.w * 1.5, gh = L.h * 1.15;
     const goo = new Container();
     const body = new Graphics();
     body.moveTo(-gw / 2, 0)
@@ -40,21 +44,31 @@ const slime: FinisherDef = {
     k.at(0.05, sfx.gloop);
     k.at(0.95, sfx.gloop);
     k.at(1.5, () => k.pop('BLORP!', L.cx, L.top - 10, { colour: 0x9bff6a }));
+    if (ending === 'spare') {
+      k.at(2.1, sfx.gloop);
+      k.at(2.15, () => k.pop('PTOOEY!', L.cx, L.top - 30, { colour: 0x9bff6a }));
+    }
     let lastBubble = 0;
+    const spitAt = ending === 'eat' ? 2.7 : 2.1;
     return (t, dt) => {
       goo.x = lerp(Wn.cx, L.cx, easeInOut(seg(t, 0, 0.9)));
       if (t < 0.9) goo.scale.set(0.3 + 0.05 * Math.sin(t * 20), 0.15 + 0.04 * Math.cos(t * 20));
-      else if (t < 2.7) {
+      else if (t < spitAt) {
         const grow = easeOutBack(seg(t, 0.9, 1.4));
         const wob = 0.035 * Math.sin(t * 9);
         goo.scale.set(lerp(0.3, 1, grow) + wob, lerp(0.15, 1, grow) - wob);
       } else {
-        const p = easeInOut(seg(t, 2.7, 3.3));
+        const p = easeInOut(seg(t, spitAt, spitAt + (ending === 'eat' ? 0.6 : 0.35)));
         goo.scale.set(lerp(1, 1.25, p), lerp(1, 0.1, p));
       }
-      const dz = seg(t, 1.4, 2.7);
-      k.lose.set({ sx: 1 - 0.5 * dz, sy: 1 - 0.6 * dz, y: -dz * 20, opacity: 1 - dz, filter: `hue-rotate(${dz * 120}deg) blur(${dz * 4}px) saturate(${1 + dz})` });
-      if (t > 1.2 && t < 2.8 && t - lastBubble > 0.1) {
+      if (ending === 'eat') {
+        const dz = seg(t, 1.4, 2.7);
+        k.lose.set({ sx: 1 - 0.5 * dz, sy: 1 - 0.6 * dz, y: -dz * 20, opacity: 1 - dz, filter: `hue-rotate(${dz * 120}deg) blur(${dz * 4}px) saturate(${1 + dz})` });
+      } else {
+        const soak = seg(t, 1.4, 2.0) * (1 - seg(t, 2.1, 2.8));
+        k.lose.set({ y: hop(seg(t, 2.1, 2.6), 70), filter: soak ? `hue-rotate(${soak * 40}deg) blur(${soak * 1.5}px)` : '', sx: 1 - 0.1 * soak, sy: 1 - 0.1 * soak });
+      }
+      if (t > 1.2 && t < spitAt && t - lastBubble > 0.1) {
         lastBubble = t;
         bubbles.spawn(rand(-gw * 0.35, gw * 0.35), -rand(8, 40), p => {
           p.vy = -rand(60, 130);
@@ -74,11 +88,11 @@ const slime: FinisherDef = {
 // ---------------------------------------------------------------- mechanoid
 const mechanoid: FinisherDef = {
   name: 'Grabber Arm',
-  duration: 3.7,
-  run(k) {
+  duration: { eat: 3.7, spare: 3.1 },
+  run(k, ending) {
     const L = k.lose.box, Wn = k.win.box, d = k.dir;
-    const sx0 = Wn.cx + d * Wn.w * 0.42, sy0 = Wn.cy - 10;
-    const tx = L.cx - d * 18, ty = L.cy - L.h * 0.08;
+    const sx0 = Wn.cx + d * Wn.w * 0.42, sy0 = Wn.cy;
+    const tx = L.cx - d * 10, ty = L.cy;
     const dist = Math.hypot(tx - sx0, ty - sy0);
     const ang = Math.atan2(ty - sy0, tx - sx0);
     const N = 5, segLen = dist / N + 16;
@@ -86,7 +100,7 @@ const mechanoid: FinisherDef = {
     arm.position.set(sx0, sy0);
     const segs: Graphics[] = [];
     for (let i = 0; i < N; i++) {
-      const h = 28 - i * 3.5;
+      const h = 26 - i * 3.5;
       const s = new Graphics()
         .roundRect(0, -h / 2, segLen, h, 6).fill(i % 2 ? 0xaeb6c2 : 0xc9cfd8).stroke({ width: 3, color: 0x2a2f3a })
         .rect(4, -h / 2 + 2, 7, h - 4).fill(k.col.accent)
@@ -106,7 +120,7 @@ const mechanoid: FinisherDef = {
     jawBot.scale.y = -1;
     const palm = new Graphics().roundRect(-6, -18, 22, 36, 6).fill(0x8a94a6).stroke({ width: 3, color: 0x2a2f3a });
     claw.addChild(jawTop, jawBot, palm);
-    const mount = new Graphics().circle(0, 0, 20).fill(0x6b7a8f).stroke({ width: 4, color: 0x2a2f3a }).circle(0, 0, 7).fill(k.col.accent);
+    const mount = new Graphics().circle(0, 0, 18).fill(0x6b7a8f).stroke({ width: 4, color: 0x2a2f3a }).circle(0, 0, 6).fill(k.col.accent);
     arm.addChild(claw, mount);
     arm.scale.set(0);
     arm.rotation = ang;
@@ -116,35 +130,47 @@ const mechanoid: FinisherDef = {
     k.at(0.25, sfx.servo);
     k.at(1.0, sfx.clank);
     k.at(1.02, () => k.pop('CLAMP!', L.cx, L.top - 16, { colour: 0xc9cfd8 }));
-    k.at(1.95, sfx.crunch);
-    k.at(2.0, () => k.pop('CRUNCH!', L.cx, L.top - 40));
-    k.at(2.62, sfx.zip);
-    k.at(2.68, () => k.pop('YEET!', L.cx, 70, { colour: 0xff7a1a }));
+    if (ending === 'eat') {
+      k.at(1.95, sfx.crunch);
+      k.at(2.0, () => k.pop('CRUNCH!', L.cx, L.top - 40));
+      k.at(2.62, sfx.zip);
+      k.at(2.68, () => k.pop('YEET!', L.cx, 60, { colour: 0xff7a1a }));
+    } else {
+      [1.95, 2.05, 2.15].forEach(at => k.at(at, sfx.clank));
+      k.at(1.95, () => k.pop('RATTLE!', L.cx, 50, { colour: 0xc9cfd8 }));
+      k.at(2.6, sfx.thump);
+    }
+    const release = ending === 'eat' ? 2.65 : 2.3;
     let fly: { x: number; y: number; vx: number; vy: number; rot: number } | null = null;
+    let dropFrom = 0;
     return (t, dt) => {
-      arm.scale.set(easeOutBack(seg(t, 0, 0.25)));
-      const ext = t < 2.7 ? easeOut(seg(t, 0.25, 0.95)) : 1 - easeIn(seg(t, 2.9, 3.5));
+      const back = ending === 'eat' ? seg(t, 2.9, 3.5) : seg(t, 2.45, 3.05);
+      const gone = ending === 'eat' ? seg(t, 3.45, 3.65) : seg(t, 2.9, 3.08);
+      arm.scale.set(easeOutBack(seg(t, 0, 0.25)) * (1 - gone));
+      const ext = t < release + 0.1 ? easeOut(seg(t, 0.25, 0.95)) : 1 - easeIn(back);
       segs.forEach((s, i) => (s.x = (ext * i * dist) / N));
       claw.x = ext * dist;
-      const open = t < 0.95 ? seg(t, 0.3, 0.8) : 1 - seg(t, 0.95, 1.1);
+      const open = t < 0.95 ? seg(t, 0.3, 0.8) : t < release ? 1 - seg(t, 0.95, 1.1) : 1;
       jawTop.rotation = -open * 0.6;
       jawBot.rotation = -open * 0.6;
       const lift = easeInOut(seg(t, 1.2, 1.9));
-      const fling = easeIn(seg(t, 2.45, 2.65));
-      arm.rotation = ang - d * lift * 0.55 + d * fling * 0.9;
-      const s = 1 - 0.55 * easeOutBack(seg(t, 1.9, 2.3));
-      if (t >= 1.0 && t < 2.65) {
+      const fling = ending === 'eat' ? easeIn(seg(t, 2.45, 2.65)) : 0;
+      const rattle = ending === 'spare' ? Math.sin(t * 70) * 0.08 * seg(t, 1.9, 1.95) * (1 - seg(t, 2.25, 2.3)) : 0;
+      arm.rotation = ang - d * lift * 0.55 + d * fling * 0.9 + rattle;
+      const crushP = ending === 'eat' ? seg(t, 1.9, 2.3) : 0;
+      const s = 1 - 0.55 * easeOutBack(crushP);
+      if (t >= 1.0 && t < release) {
         const reach = claw.x + 26;
         const cx = sx0 + Math.cos(arm.rotation) * reach;
         const cy = sy0 + Math.sin(arm.rotation) * reach;
-        const crush = seg(t, 1.9, 2.3);
         k.lose.set({
           x: cx - L.cx, y: cy - L.bottom + (s * L.h) / 2, sx: s, sy: s,
-          rot: Math.sin(t * 30) * 5 * lift * (1 - crush),
-          filter: crush ? `grayscale(${crush}) contrast(${1 + crush * 0.3})` : '',
-          clip: crush ? `inset(${crush * 14}% round 10px)` : '',
+          rot: Math.sin(t * 30) * 5 * lift * (1 - crushP),
+          filter: crushP ? `grayscale(${crushP}) contrast(${1 + crushP * 0.3})` : '',
+          clip: crushP ? `inset(${crushP * 22}% round 10px)` : '',
         });
-        if (t > 1.9 && t < 2.3 && Math.random() < 0.6) {
+        dropFrom = k.lose.s.y;
+        if (crushP > 0 && crushP < 1 && Math.random() < 0.6) {
           sparks.spawn(cx, cy, p => {
             const a = rand(0, Math.PI * 2);
             p.vx = Math.cos(a) * rand(200, 420);
@@ -153,13 +179,18 @@ const mechanoid: FinisherDef = {
             p.life = 0.35;
           });
         }
-      } else if (t >= 2.65) {
+      } else if (t >= release && ending === 'eat') {
         fly ??= { x: k.lose.s.x, y: k.lose.s.y, vx: d * 620, vy: -820, rot: 0 };
         fly.vy += 1500 * dt;
         fly.x += fly.vx * dt;
         fly.y += fly.vy * dt;
         fly.rot += d * 900 * dt;
         k.lose.set({ x: fly.x, y: fly.y, rot: fly.rot });
+      } else if (t >= release) {
+        // Dropped back onto the stage with a bump.
+        const p = seg(t, release, release + 0.3);
+        const x = k.lose.s.x * (1 - easeIn(p));
+        k.lose.set({ x, y: lerp(dropFrom, 0, easeIn(p)) + hop(seg(t, release + 0.3, release + 0.5), 14), rot: 0 });
       }
       sparks.update(dt, p => void (p.c.alpha = 1 - p.age / p.life));
     };
@@ -169,19 +200,17 @@ const mechanoid: FinisherDef = {
 // ---------------------------------------------------------------- furball
 const furball: FinisherDef = {
   name: 'Hairball Steamroller',
-  duration: 3.3,
-  run(k) {
+  duration: { eat: 3.3, spare: 2.8 },
+  run(k, ending) {
     const L = k.lose.box, Wn = k.win.box, d = k.dir;
-    const R = Math.min(L.h * 0.4, 115);
+    const R = Math.min(L.h * 0.55, 100);
     const ball = new Container();
     const fuzz = new Graphics();
-    for (let i = 0; i < 30; i++) {
-      const a = (i / 30) * Math.PI * 2;
-      fuzz.circle(Math.cos(a) * R * 0.88, Math.sin(a) * R * 0.88, R * 0.2 + 4).fill(k.col.dark);
-    }
-    for (let i = 0; i < 30; i++) {
-      const a = (i / 30) * Math.PI * 2;
-      fuzz.circle(Math.cos(a) * R * 0.88, Math.sin(a) * R * 0.88, R * 0.2).fill(k.col.body);
+    for (const [col, extra] of [[k.col.dark, 4], [k.col.body, 0]] as const) {
+      for (let i = 0; i < 30; i++) {
+        const a = (i / 30) * Math.PI * 2;
+        fuzz.circle(Math.cos(a) * R * 0.88, Math.sin(a) * R * 0.88, R * 0.2 + extra).fill(col);
+      }
     }
     fuzz.circle(0, 0, R * 0.9).fill(k.col.body);
     for (let i = 0; i < 4; i++) {
@@ -200,6 +229,10 @@ const furball: FinisherDef = {
     const endX = offscreen(k, d, R * 2);
     let hit = -1;
     k.at(0.3, sfx.rumble);
+    if (ending === 'spare') {
+      k.at(2.3, sfx.pop);
+      k.at(2.32, () => k.pop('BOING!', L.cx, L.top - 20, { colour: 0xffffff }));
+    }
     return (t, dt) => {
       ball.scale.set(easeOutBack(seg(t, 0, 0.35)));
       const prevX = ball.x;
@@ -210,12 +243,13 @@ const furball: FinisherDef = {
       if (hit < 0 && d * (ball.x - hitX) >= 0) {
         hit = t;
         sfx.squish();
-        k.pop('SPLAT!', L.cx, L.top + L.h * 0.4, { size: 46 });
+        k.pop('SPLAT!', L.cx, L.top - 10, { size: 46 });
       }
       if (hit >= 0) {
         const f = easeOut(seg(t, hit, hit + 0.18));
-        const flutter = Math.sin(t * 9) * 3 * seg(t, 2.2, 2.4) * (1 - seg(t, 2.6, 3.2));
-        k.lose.set({ sy: lerp(1, 0.07, f), sx: lerp(1, 1.35, f), rot: flutter });
+        const unflat = ending === 'spare' ? easeOutBack(seg(t, 2.3, 2.65)) : 0;
+        const flutter = ending === 'eat' ? Math.sin(t * 9) * 3 * seg(t, 2.2, 2.4) * (1 - seg(t, 2.6, 3.2)) : 0;
+        k.lose.set({ sy: lerp(lerp(1, 0.07, f), 1, unflat), sx: lerp(lerp(1, 1.35, f), 1, unflat), rot: flutter });
       }
       if (t > 0.4 && t < 2.2 && Math.random() < 0.5) {
         fluff.spawn(ball.x - d * R * 0.6, ball.y + rand(-R * 0.6, R * 0.6), p => {
@@ -235,18 +269,19 @@ const furball: FinisherDef = {
 // ---------------------------------------------------------------- mutant
 const mutant: FinisherDef = {
   name: 'Toxic Burp',
-  duration: 3.5,
-  run(k) {
+  duration: { eat: 3.5, spare: 2.8 },
+  run(k, ending) {
     const L = k.lose.box, Wn = k.win.box, d = k.dir;
-    const mx = Wn.cx + d * Wn.w * 0.15, my = Wn.top + Wn.h * 0.42;
+    const mx = Wn.cx + d * Wn.w * 0.15, my = Wn.top + Wn.h * 0.5;
     const gas = new Pool(k.stage, 44, () => new Graphics().circle(0, 0, 20).fill({ color: 0x9bff3a, alpha: 0.5 }).circle(6, -5, 9).fill({ color: 0xd8ff9a, alpha: 0.5 }));
     const ring = new Graphics().circle(0, 0, 40).stroke({ width: 6, color: 0x9bff3a });
     ring.visible = false;
     k.stage.addChild(ring);
     k.at(0.42, sfx.burp);
-    k.at(0.45, () => k.pop('BUUURP!', Wn.cx, Wn.top - 4, { colour: 0x9bff3a }));
+    k.at(0.45, () => k.pop('BUUURP!', Wn.cx, Wn.top - 10, { colour: 0x9bff3a }));
     k.at(1.75, sfx.pop);
-    k.at(2.25, () => k.pop('eep!', L.cx, L.bottom - 60, { size: 24, colour: 0xffffff, hold: 0.5 }));
+    if (ending === 'eat') k.at(2.25, () => k.pop('eep!', L.cx, L.bottom - 60, { size: 24, colour: 0xffffff, hold: 0.5 }));
+    else k.at(2.3, sfx.pop);
     const away = offscreen(k, d, 60) - L.cx;
     return (t, dt) => {
       const swell = easeOut(seg(t, 0, 0.4)) * (1 - easeOutBack(seg(t, 0.4, 0.65)));
@@ -266,23 +301,25 @@ const mutant: FinisherDef = {
         p.c.scale.set(p.data.s! + p.age * 1.5);
         p.c.alpha = 0.8 * (1 - p.age / p.life);
       });
-      const green = seg(t, 1.0, 1.7);
+      const unshrink = ending === 'spare' ? easeOutBack(seg(t, 2.3, 2.6)) : 0;
+      const green = seg(t, 1.0, 1.7) * (1 - unshrink * 0.8);
       const shrink = easeInOut(seg(t, 1.7, 2.2));
-      const s = lerp(1, 0.28, shrink);
+      const s = lerp(lerp(1, 0.28, shrink), 1, unshrink);
       let x = Math.sin(t * 60) * 4 * green * (1 - shrink);
       let y = 0;
-      if (t > 2.2) {
+      if (ending === 'eat' && t > 2.2) {
         const hp = seg(t, 2.2, 3.4) * 3;
-        const hop = hp % 1;
+        const h = hp % 1;
         x = (away * Math.min(hp, 3)) / 3;
-        y = -Math.sin(hop * Math.PI) * 60;
-        if (hp < 3 && hop < 0.05) sfx.pop();
+        y = -Math.sin(h * Math.PI) * 60;
+        if (hp < 3 && h < 0.05) sfx.pop();
       }
       k.lose.set({ x, y, sx: s, sy: s, filter: green ? `sepia(${green}) hue-rotate(${50 * green}deg) saturate(${1 + 2 * green})` : '' });
-      if (t >= 1.7 && t < 2.1) {
+      const ringAt = t >= 1.7 && t < 2.1 ? 1.7 : ending === 'spare' && t >= 2.3 && t < 2.7 ? 2.3 : -1;
+      if (ringAt > 0) {
         ring.visible = true;
         ring.position.set(L.cx, L.bottom - L.h * 0.3);
-        const r = seg(t, 1.7, 2.1);
+        const r = seg(t, ringAt, ringAt + 0.4);
         ring.scale.set(0.5 + r * 2);
         ring.alpha = 1 - r;
       } else ring.visible = false;
@@ -291,7 +328,7 @@ const mutant: FinisherDef = {
 };
 
 // ---------------------------------------------------------------- beast
-function star(size: number, colour: number): Graphics {
+export function star(size: number, colour: number): Graphics {
   const pts: number[] = [];
   for (let i = 0; i < 10; i++) {
     const r = i % 2 ? size * 0.45 : size;
@@ -303,8 +340,8 @@ function star(size: number, colour: number): Graphics {
 
 const beast: FinisherDef = {
   name: 'Ground Pound',
-  duration: 3.3,
-  run(k) {
+  duration: { eat: 3.3, spare: 2.5 },
+  run(k, ending) {
     const L = k.lose.box, Wn = k.win.box;
     const dx = L.cx - Wn.cx;
     const cracks = new Graphics();
@@ -313,8 +350,8 @@ const beast: FinisherDef = {
       let x = L.cx, y = k.ground;
       cracks.moveTo(x, y);
       for (let j = 0; j < 4; j++) {
-        x += Math.cos(a + rand(-0.4, 0.4)) * rand(20, 40) * -1;
-        y += Math.abs(Math.sin(a)) * rand(2, 8);
+        x -= Math.cos(a + rand(-0.4, 0.4)) * rand(20, 40);
+        y += Math.abs(Math.sin(a)) * rand(1, 4);
         cracks.lineTo(x, y);
       }
     }
@@ -330,37 +367,43 @@ const beast: FinisherDef = {
       k.stage.addChild(s);
       return s;
     });
+    const H = L.h * 1.1;
     k.at(1.0, () => {
       sfx.boom();
       k.shake(16, 0.5);
       k.pop('KA-THOOM!', L.cx, L.top - 34, { size: 48 });
       for (let i = 0; i < 22; i++) {
-        dust.spawn(L.cx + rand(-L.w * 0.6, L.w * 0.6), k.ground - rand(0, 20), p => {
+        dust.spawn(L.cx + rand(-L.w * 0.7, L.w * 0.7), k.ground - rand(0, 20), p => {
           p.vx = rand(-260, 260);
           p.vy = rand(-160, -30);
           p.life = rand(0.6, 1.0);
         });
       }
     });
+    if (ending === 'spare') {
+      k.at(2.0, sfx.pop);
+      k.at(2.02, () => k.pop('BOING!', L.cx, L.top - 20, { colour: 0xffffff }));
+    }
     return (t, dt) => {
       const crouch = seg(t, 0, 0.25) * (1 - seg(t, 0.25, 0.35));
       if (t < 0.25) k.win.set({ sy: 1 - 0.15 * crouch, sx: 1 + 0.1 * crouch });
       else if (t < 0.85) {
         const p = seg(t, 0.25, 0.85);
-        k.win.set({ sx: 1, sy: 1, x: dx * easeOut(p), y: -Math.sin((p * Math.PI) / 2) * L.h * 0.95, rot: -k.dir * 12 * p });
+        k.win.set({ sx: 1, sy: 1, x: dx * easeOut(p), y: -Math.sin((p * Math.PI) / 2) * H, rot: -k.dir * 12 * p });
       } else if (t < 1.0) {
         const p = easeIn(seg(t, 0.85, 1.0));
-        k.win.set({ x: dx, y: lerp(-L.h * 0.95, -L.h * 0.15, p), rot: -k.dir * 12 * (1 - p) });
+        k.win.set({ x: dx, y: lerp(-H, -L.h * 0.15, p), rot: -k.dir * 12 * (1 - p) });
       } else if (t < 1.25) {
         const sq = Math.sin(seg(t, 1.0, 1.25) * Math.PI);
         k.win.set({ x: dx, y: -L.h * 0.15, sx: 1 + 0.15 * sq, sy: 1 - 0.15 * sq, rot: 0 });
       } else if (t < 1.9) {
         const p = easeInOut(seg(t, 1.25, 1.9));
-        k.win.set({ x: dx * (1 - p), y: lerp(-L.h * 0.15, 0, p) - Math.sin(p * Math.PI) * L.h * 0.5, sx: 1, sy: 1 });
+        k.win.set({ x: dx * (1 - p), y: lerp(-L.h * 0.15, 0, p) - Math.sin(p * Math.PI) * L.h * 0.6, sx: 1, sy: 1 });
       } else k.win.set({ x: 0, y: 0, rot: 0 });
 
       const flat = easeOutBack(seg(t, 0.98, 1.12));
-      k.lose.set({ sy: 1 - 0.85 * flat, sx: 1 + 0.35 * flat });
+      const unflat = ending === 'spare' ? easeOutBack(seg(t, 2.0, 2.35)) : 0;
+      k.lose.set({ sy: lerp(1 - 0.85 * flat, 1, unflat), sx: lerp(1 + 0.35 * flat, 1, unflat), y: hop(seg(t, 2.0, 2.35), 30) * (unflat ? 1 : 0) });
       cracks.scale.set(easeOut(seg(t, 1.0, 1.15)));
       dust.update(dt, p => {
         p.vy += 200 * dt;
@@ -368,7 +411,7 @@ const beast: FinisherDef = {
         p.c.scale.set(1 + p.age);
       });
       stars.forEach((s, i) => {
-        s.visible = t > 1.3;
+        s.visible = t > 1.3 && (ending === 'eat' || t < 2.0);
         const a = t * 5 + (i * Math.PI * 2) / 3;
         s.position.set(L.cx + Math.cos(a) * 46, k.ground - L.h * 0.22 + Math.sin(a) * 10);
         s.rotation = t * 4;
@@ -380,8 +423,8 @@ const beast: FinisherDef = {
 // ---------------------------------------------------------------- bug
 const bug: FinisherDef = {
   name: 'Swarm Lift',
-  duration: 3.4,
-  run(k) {
+  duration: { eat: 3.4, spare: 3.0 },
+  run(k, ending) {
     const L = k.lose.box, Wn = k.win.box, d = k.dir;
     const N = 38;
     const bugs = Array.from({ length: N }, (_, i) => {
@@ -389,37 +432,51 @@ const bug: FinisherDef = {
       const wings = new Graphics().ellipse(-4, -6, 6, 4).ellipse(4, -6, 6, 4).fill({ color: 0xffffff, alpha: 0.75 }).stroke({ width: 1.5, color: 0x000000, alpha: 0.5 });
       const body = new Graphics().ellipse(0, 0, 7, 5).fill(i % 3 ? k.col.dark : k.col.accent).stroke({ width: 1.5, color: 0x000000 }).circle(7, -1, 3.5).fill(0x111111);
       c.addChild(wings, body);
+      c.visible = false;
       k.stage.addChild(c);
       const sx = Wn.cx + rand(-Wn.w * 0.3, Wn.w * 0.3), sy = Wn.cy + rand(-Wn.h * 0.3, Wn.h * 0.2);
+      const a = rand(0, Math.PI * 2);
       return {
         c, wings, sx, sy,
         ox: rand(-L.w * 0.45, L.w * 0.45), oy: rand(-L.h * 0.45, L.h * 0.45),
         cx: lerp(sx, L.cx, 0.5) + rand(-60, 60), cy: Math.min(sy, L.cy) - rand(60, 160),
-        delay: i * 0.022, phase: rand(0, 10),
+        delay: i * 0.022, phase: rand(0, 10), sdx: Math.cos(a), sdy: Math.sin(a) - 0.6,
       };
     });
     k.at(0.05, sfx.buzz);
     k.at(1.0, sfx.buzz);
     k.at(1.5, () => k.pop('BZZZT!', L.cx, L.top - 20, { colour: 0xffe14d }));
     k.at(1.9, sfx.buzz);
+    if (ending === 'spare') {
+      k.at(2.5, () => k.pop('SHOO!', L.cx, 50, { colour: 0xffffff }));
+      k.at(2.85, sfx.thump);
+    }
     const carryX = d * k.W * 0.22, carryY = -(L.bottom + 80);
     return t => {
-      const e = easeIn(seg(t, 1.9, 3.1));
-      const cx = carryX * e, cy = carryY * e;
-      const darken = seg(t, 1.3, 1.9);
-      k.lose.set({ x: cx, y: cy + (e ? Math.sin(t * 8) * 6 : 0), rot: e ? Math.sin(t * 6) * 10 : 0, filter: darken ? `brightness(${1 - 0.35 * darken})` : '' });
+      let cx = 0, cy = 0;
+      if (ending === 'eat') {
+        const e = easeIn(seg(t, 1.9, 3.1));
+        cx = carryX * e;
+        cy = carryY * e;
+      } else {
+        cy = -140 * easeInOut(seg(t, 1.9, 2.5)) * (1 - easeIn(seg(t, 2.5, 2.85)));
+      }
+      const darken = seg(t, 1.3, 1.9) * (ending === 'spare' ? 1 - seg(t, 2.5, 2.9) : 1);
+      const swing = cy ? 1 : 0;
+      k.lose.set({ x: cx, y: cy + Math.sin(t * 8) * 6 * swing, rot: Math.sin(t * 6) * 10 * swing, filter: darken ? `brightness(${1 - 0.35 * darken})` : '' });
+      const scatter = ending === 'spare' ? easeIn(seg(t, 2.5, 3.0)) : 0;
       for (const b of bugs) {
         const p = easeInOut(seg(t, b.delay, b.delay + 0.95));
         const tx = L.cx + b.ox, ty = L.cy + b.oy;
         const prevX = b.c.x, prevY = b.c.y;
-        // quadratic bezier from the winner to a spot on the loser
         const x = (1 - p) * (1 - p) * b.sx + 2 * (1 - p) * p * b.cx + p * p * tx;
         const y = (1 - p) * (1 - p) * b.sy + 2 * (1 - p) * p * b.cy + p * p * ty;
         const jig = p >= 1 ? 3 : 1;
-        b.c.position.set(x + cx + Math.sin(t * 20 + b.phase) * jig, y + cy + Math.cos(t * 23 + b.phase) * jig);
+        const sc = scatter * 600;
+        b.c.position.set(x + cx + Math.sin(t * 20 + b.phase) * jig + b.sdx * sc, y + cy + Math.cos(t * 23 + b.phase) * jig + b.sdy * sc);
         const vx = b.c.x - prevX, vy = b.c.y - prevY;
         if (Math.abs(vx) + Math.abs(vy) > 0.5) b.c.rotation = Math.atan2(vy, vx);
-        b.c.visible = t >= b.delay;
+        b.c.visible = t >= b.delay && scatter < 0.95;
         b.wings.scale.y = Math.sin(t * 60 + b.phase) > 0 ? 1 : 0.3;
       }
     };
@@ -429,10 +486,10 @@ const bug: FinisherDef = {
 // ---------------------------------------------------------------- ghoul
 const ghoul: FinisherDef = {
   name: 'Spooky Possession',
-  duration: 3.4,
-  run(k) {
+  duration: { eat: 3.4, spare: 2.9 },
+  run(k, ending) {
     const L = k.lose.box, Wn = k.win.box, d = k.dir;
-    const gw = Wn.w * 0.55, gh = gw * 1.1;
+    const gw = Wn.w * 0.6, gh = gw * 1.1;
     const ghost = new Container();
     const shape = new Graphics()
       .moveTo(-gw / 2, 0).bezierCurveTo(-gw / 2, -gh * 1.15, gw / 2, -gh * 1.15, gw / 2, 0)
@@ -442,21 +499,22 @@ const ghoul: FinisherDef = {
       .ellipse(-gw * 0.16, -gh * 0.55, gw * 0.09, gh * 0.12).ellipse(gw * 0.16, -gh * 0.55, gw * 0.09, gh * 0.12).fill(0x1d1028)
       .ellipse(0, -gh * 0.28, gw * 0.08, gh * 0.09).fill(0x1d1028);
     ghost.addChild(shape, face);
-    ghost.scale.set(d, 1);
     ghost.alpha = 0;
     k.stage.addChild(ghost);
     const wisps = new Pool(k.stage, 24, () => new Graphics().circle(0, 0, 8).fill({ color: 0xe6d4ff, alpha: 0.6 }));
     k.at(0.3, sfx.spooky);
     k.at(1.2, () => k.pop('BOO!', L.cx, L.top - 16, { colour: 0xe6d4ff, size: 50 }));
+    if (ending === 'spare') k.at(2.2, () => k.pop('BLEH!', L.cx, L.top - 16, { colour: 0xffffff }));
     const x0 = Wn.cx, y0 = Wn.cy, x1 = L.cx, y1 = L.cy;
     return (t, dt) => {
       const p = easeInOut(seg(t, 0.3, 1.2));
-      ghost.position.set(lerp(x0, x1, p), lerp(y0, y1, p) - seg(t, 0, 0.3) * 30 + Math.sin(p * Math.PI * 3) * 25);
-      const enter = seg(t, 1.2, 1.4);
-      ghost.alpha = 0.85 * seg(t, 0, 0.3) * (1 - enter);
-      ghost.scale.set(d * (1 - 0.7 * enter), 1 - 0.7 * enter);
-      const pos = seg(t, 1.3, 2.2);
-      const up = easeIn(seg(t, 2.2, 3.4));
+      const out = ending === 'spare' ? easeInOut(seg(t, 2.2, 2.8)) : 0;
+      ghost.position.set(lerp(lerp(x0, x1, p), x0, out), lerp(lerp(y0, y1, p), y0 - 20, out) - seg(t, 0, 0.3) * 30 + Math.sin(p * Math.PI * 3) * 25);
+      const enter = seg(t, 1.2, 1.4) * (ending === 'spare' ? 1 - seg(t, 2.2, 2.35) : 1);
+      ghost.alpha = 0.85 * seg(t, 0, 0.3) * (1 - enter) * (1 - seg(t, 2.65, 2.8) * (ending === 'spare' ? 1 : 0));
+      ghost.scale.set((out ? -d : d) * (1 - 0.7 * enter), 1 - 0.7 * enter);
+      const pos = seg(t, 1.3, 2.2) * (1 - out);
+      const up = ending === 'eat' ? easeIn(seg(t, 2.2, 3.4)) : 0;
       k.lose.set({
         filter: pos ? `grayscale(${pos}) brightness(${1 + 0.5 * pos}) drop-shadow(0 0 ${12 * pos}px #c9a0ff)` : '',
         opacity: (1 - 0.35 * pos) * (1 - up),
@@ -493,14 +551,14 @@ function rock(r: number, colour: number): Graphics {
 
 const rockling: FinisherDef = {
   name: 'Rockslide',
-  duration: 3.4,
-  run(k) {
+  duration: { eat: 3.4, spare: 3.2 },
+  run(k, ending) {
     const L = k.lose.box;
     const rows = [5, 4, 3, 2, 1];
-    const rowH = L.h * 0.19;
-    const spacing = (L.w * 1.25) / 5;
+    const rowH = L.h * 0.22;
+    const spacing = (L.w * 1.35) / 5;
     const greys = [0x8a8f99, 0x6b7a8f, 0xa0a4ab, 0x7d7468];
-    const rocks: { g: Graphics; x: number; y: number; start: number; landed: boolean; spin: number }[] = [];
+    const rocks: { g: Graphics; x: number; y: number; start: number; landed: boolean; spin: number; vx: number; vy: number }[] = [];
     let i = 0;
     rows.forEach((n, row) => {
       for (let j = 0; j < n; j++) {
@@ -508,7 +566,8 @@ const rockling: FinisherDef = {
         const gfx = rock(r, i % 5 === 4 ? k.col.accent : greys[i % greys.length]!);
         gfx.visible = false;
         k.stage.addChild(gfx);
-        rocks.push({ g: gfx, x: L.cx + (j - (n - 1) / 2) * spacing + rand(-6, 6), y: k.ground - r * 0.7 - row * rowH, start: 0.45 + i * 0.12, landed: false, spin: rand(-6, 6) });
+        const x = L.cx + (j - (n - 1) / 2) * spacing + rand(-6, 6);
+        rocks.push({ g: gfx, x, y: k.ground - r * 0.7 - row * rowH, start: 0.45 + i * 0.12, landed: false, spin: rand(-6, 6), vx: (x - L.cx) * 6 + rand(-80, 80), vy: rand(-700, -400) });
         i++;
       }
     });
@@ -516,18 +575,30 @@ const rockling: FinisherDef = {
     k.at(0, () => {
       sfx.rumble();
       k.shake(5, 0.6);
-      k.pop('RUMBLE!', L.cx, 60, { colour: 0xd6cdbd });
+      k.pop('RUMBLE!', L.cx, 50, { colour: 0xd6cdbd });
     });
     const last = rocks[rocks.length - 1]!;
-    k.at(last.start + 0.4, () => k.pop('ROCK BOTTOM!', L.cx, last.y - 70, { size: 34 }));
+    const buried = last.start + 0.35;
+    if (ending === 'eat') k.at(last.start + 0.4, () => k.pop('ROCK BOTTOM!', L.cx, last.y - 70, { size: 34 }));
+    else {
+      k.at(buried + 0.15, () => { sfx.boom(); k.pop('BREAKOUT!', L.cx, 50, { colour: 0xffffff }); });
+    }
+    const burst = buried + 0.15;
     return (t, dt) => {
       for (const r of rocks) {
         if (t < r.start) continue;
         r.g.visible = true;
+        if (ending === 'spare' && t >= burst) {
+          r.vy += 1600 * dt;
+          r.g.x += r.vx * dt;
+          r.g.y += r.vy * dt;
+          r.g.rotation += r.spin * dt;
+          r.g.alpha = 1 - seg(t, burst + 0.25, burst + 0.5);
+          continue;
+        }
         const p = seg(t, r.start, r.start + 0.35);
-        const fall = easeIn(p);
         const bounce = p >= 1 ? Math.sin(seg(t, r.start + 0.35, r.start + 0.55) * Math.PI) * 10 : 0;
-        r.g.position.set(r.x, lerp(-80, r.y, fall) - bounce);
+        r.g.position.set(r.x, lerp(-80, r.y, easeIn(p)) - bounce);
         r.g.rotation = r.spin * (1 - p) * 0.3;
         if (p >= 1 && !r.landed) {
           r.landed = true;
@@ -541,8 +612,12 @@ const rockling: FinisherDef = {
           }
         }
       }
-      const cover = seg(t, 0.45, rocks[rocks.length - 1]!.start + 0.35);
-      k.lose.set({ filter: `brightness(${1 - 0.5 * cover})`, y: cover * 12, opacity: 1 - seg(t, 2.3, 2.6) });
+      const cover = seg(t, 0.45, buried) * (ending === 'spare' ? 1 - seg(t, burst, burst + 0.3) : 1);
+      k.lose.set({
+        filter: cover ? `brightness(${1 - 0.5 * cover})` : '',
+        y: cover * 12 + (ending === 'spare' ? hop(seg(t, burst, burst + 0.45), 60) : 0),
+        opacity: ending === 'eat' ? 1 - seg(t, 2.3, 2.6) : 1,
+      });
       dust.update(dt, q => {
         q.c.alpha = 0.85 * (1 - q.age / q.life);
         q.c.scale.set(1 + q.age * 1.5);
@@ -554,8 +629,8 @@ const rockling: FinisherDef = {
 // ---------------------------------------------------------------- sprout
 const sprout: FinisherDef = {
   name: 'Overgrowth',
-  duration: 3.7,
-  run(k) {
+  duration: { eat: 3.7, spare: 2.8 },
+  run(k, ending) {
     const L = k.lose.box;
     const vines = new Container();
     const mask = new Graphics().rect(0, 0, k.W, k.ground + 4).fill(0xffffff);
@@ -568,8 +643,8 @@ const sprout: FinisherDef = {
       const dots: Graphics[] = [];
       for (let j = 0; j < M; j++) {
         const s = j / (M - 1);
-        const x = L.cx + Math.sin(s * Math.PI * 2.4 + phase) * L.w * 0.56 * (1 - 0.3 * s);
-        const y = k.ground + 6 - s * L.h * 0.95;
+        const x = L.cx + Math.sin(s * Math.PI * 2.4 + phase) * L.w * 0.6 * (1 - 0.3 * s);
+        const y = k.ground + 6 - s * L.h * 1.05;
         const dot = new Graphics().circle(0, 0, 6.5 - s * 2).fill(0x3f8a2a).stroke({ width: 2, color: 0x1f4a14 });
         if (j % 5 === 3) dot.ellipse(9, -4, 10, 5).fill(0x6fd04f).stroke({ width: 1.5, color: 0x1f4a14 });
         dot.position.set(x, y);
@@ -596,20 +671,31 @@ const sprout: FinisherDef = {
     flower.scale.set(0);
     k.stage.addChild(stem, flower);
     k.at(0.15, sfx.rumble);
-    k.at(1.7, () => k.pop('GULP!', L.cx, L.top - 10, { colour: 0x6fd04f }));
-    k.at(2.85, sfx.chime);
-    k.at(2.9, () => k.pop('BLOOM!', L.cx, k.ground - 150, { colour: 0xff9eb5 }));
+    if (ending === 'eat') {
+      k.at(1.7, () => k.pop('GULP!', L.cx, L.top - 10, { colour: 0x6fd04f }));
+      k.at(2.85, sfx.chime);
+      k.at(2.9, () => k.pop('BLOOM!', L.cx, k.ground - 150, { colour: 0xff9eb5 }));
+    } else {
+      k.at(1.6, () => k.pop('SQUEEZE!', L.cx, L.top - 10, { colour: 0x6fd04f }));
+    }
     return t => {
       for (const s of strands) {
-        const n = Math.floor(seg(t, s.start, s.start + 1.3) * M);
+        const grow = seg(t, s.start, s.start + 1.3);
+        const shrink = ending === 'spare' ? seg(t, 2.1, 2.6) : 0;
+        const n = Math.floor(grow * (1 - shrink) * M);
         s.dots.forEach((dot, j) => (dot.visible = j < n));
       }
-      const sink = easeIn(seg(t, 1.6, 2.6)) * (L.h + 24);
-      vines.y = sink;
-      k.lose.set({ y: sink, x: sink ? Math.sin(t * 30) * 3 : 0, clip: sink ? `inset(0 0 ${sink}px 0)` : '' });
-      stem.scale.y = easeOut(seg(t, 2.6, 2.9));
-      flower.scale.set(easeOutBack(seg(t, 2.85, 3.2)));
-      flower.rotation = Math.sin(t * 3) * 0.12;
+      if (ending === 'eat') {
+        const sink = easeIn(seg(t, 1.6, 2.6)) * (L.h * 1.6 + 24);
+        vines.y = sink;
+        k.lose.set({ y: sink, x: sink ? Math.sin(t * 30) * 3 : 0, clip: sink ? `inset(0 0 ${sink}px 0)` : '' });
+        stem.scale.y = easeOut(seg(t, 2.6, 2.9));
+        flower.scale.set(easeOutBack(seg(t, 2.85, 3.2)));
+        flower.rotation = Math.sin(t * 3) * 0.12;
+      } else {
+        const sq = seg(t, 1.5, 1.6) * (1 - seg(t, 2.1, 2.3));
+        k.lose.set({ sx: 1 - 0.12 * sq, x: Math.sin(t * 40) * 3 * sq });
+      }
     };
   },
 };
@@ -617,8 +703,8 @@ const sprout: FinisherDef = {
 // ---------------------------------------------------------------- fishling
 const fishling: FinisherDef = {
   name: 'Tidal Wave',
-  duration: 3.5,
-  run(k) {
+  duration: { eat: 3.5, spare: 3.1 },
+  run(k, ending) {
     const L = k.lose.box, Wn = k.win.box, d = k.dir;
     const ww = Math.min(k.W * 0.42, 420), wh = k.H * 0.92;
     const wave = new Container();
@@ -655,6 +741,7 @@ const fishling: FinisherDef = {
     let hit = -1;
     let carry = { x: 0, rot: 0 };
     k.at(0.15, sfx.splash);
+    if (ending === 'spare') k.at(2.4, () => k.pop('*splutter*', L.cx, L.top - 10, { colour: 0xbfe6ff, size: 26 }));
     return (t, dt) => {
       wave.scale.y = easeOutBack(seg(t, 0.15, 0.6));
       const front = lerp(front0, frontEnd, easeIn(seg(t, 0.4, 2.5)) * 0.6 + seg(t, 0.4, 2.5) * 0.4);
@@ -665,9 +752,20 @@ const fishling: FinisherDef = {
         sfx.splash();
         k.pop('SPLOOSH!', L.cx, L.top - 20, { colour: 0xbfe6ff, size: 46 });
       }
-      if (hit >= 0) {
+      if (hit >= 0 && ending === 'eat') {
         carry = { x: front - L.cx - d * L.w * 0.25, rot: carry.rot + d * 380 * dt };
         k.lose.set({ x: carry.x, y: -L.h * 0.25 - Math.sin(t * 10) * 10, rot: carry.rot, sx: 0.85, sy: 0.85 });
+      } else if (hit >= 0) {
+        // Knocked flat and slid along, then back up, dripping.
+        const knock = easeOut(seg(t, hit, hit + 0.3));
+        const up = easeInOut(seg(t, 2.4, 2.9));
+        k.lose.set({ x: d * 70 * knock * (1 - up), rot: d * 85 * knock * (1 - up), filter: knock * (1 - up) ? `brightness(0.9) saturate(${1 - 0.3 * knock})` : '' });
+        if (t > 2.3 && t < 3.0 && Math.random() < 0.3) {
+          drops.spawn(L.cx + k.lose.s.x + rand(-L.w * 0.4, L.w * 0.4), L.top + rand(0, L.h * 0.6), p => {
+            p.vy = rand(40, 120);
+            p.life = 0.5;
+          });
+        }
       }
       if (t > 0.3 && t < 2.5) {
         drops.spawn(front, k.ground - wh * rand(0.5, 0.9), p => {
@@ -680,7 +778,7 @@ const fishling: FinisherDef = {
         p.vy += 700 * dt;
         p.c.alpha = 1 - p.age / p.life;
       });
-      if (t > 2.4) {
+      if (ending === 'eat' && t > 2.4) {
         fish.visible = true;
         fish.position.set(L.cx, k.ground - 14 - Math.abs(Math.sin(t * 9)) * 26);
         fish.scale.x = Math.sin(t * 9) > 0 ? 1 : -1;
@@ -694,30 +792,34 @@ const fishling: FinisherDef = {
 const FLAME = [0xffe14d, 0xff9a1a, 0xe94f37, 0x6b6b6b];
 const drake: FinisherDef = {
   name: 'Dragon Breath',
-  duration: 3.8,
-  run(k) {
+  duration: { eat: 3.8, spare: 2.8 },
+  run(k, ending) {
     const L = k.lose.box, Wn = k.win.box, d = k.dir;
-    const mx = Wn.cx + d * Wn.w * 0.28, my = Wn.top + Wn.h * 0.4;
+    const mx = Wn.cx + d * Wn.w * 0.28, my = Wn.top + Wn.h * 0.5;
     const ax = L.cx - mx, ay = L.cy - my;
     const len = Math.hypot(ax, ay);
     const flames = new Pool(k.stage, 90, () => new Graphics().circle(0, 0, 14).fill(0xffffff));
     const ash = new Pool(k.stage, 40, () => new Graphics().circle(0, 0, 4).fill(0x4a4a52));
     const smoke = new Pool(k.stage, 20, () => new Graphics().circle(0, 0, 12).fill({ color: 0x6b6b6b, alpha: 0.5 }));
     const pile = new Graphics()
-      .ellipse(0, 0, L.w * 0.42, L.h * 0.17).fill(0x3a3a42).stroke({ width: 4, color: 0x000000 })
-      .ellipse(-L.w * 0.1, -L.h * 0.06, L.w * 0.18, L.h * 0.05).fill(0x5a5a62);
+      .ellipse(0, 0, L.w * 0.45, L.h * 0.2).fill(0x3a3a42).stroke({ width: 4, color: 0x000000 })
+      .ellipse(-L.w * 0.1, -L.h * 0.07, L.w * 0.2, L.h * 0.06).fill(0x5a5a62);
     pile.position.set(L.cx, k.ground);
     pile.scale.set(0);
     const eyes = new Graphics()
       .circle(-14, 0, 9).circle(14, 0, 9).fill(0xffffff).stroke({ width: 2.5, color: 0x000000 })
       .circle(-12, 1, 4).circle(16, 1, 4).fill(0x000000);
-    eyes.position.set(L.cx, k.ground - L.h * 0.08);
+    eyes.position.set(L.cx, k.ground - L.h * 0.1);
     eyes.scale.set(0);
     k.stage.addChild(pile, eyes);
     k.at(0.3, sfx.fire);
-    k.at(0.4, () => k.pop('FWOOOSH!', lerp(Wn.cx, L.cx, 0.5), Math.min(Wn.top, L.top) - 6, { colour: 0xff9a1a, size: 44 }));
-    k.at(2.0, sfx.crunch);
-    k.at(2.3, () => k.pop('CRISPY!', L.cx, L.top + L.h * 0.4, { colour: 0xd6cdbd }));
+    k.at(0.4, () => k.pop('FWOOOSH!', lerp(Wn.cx, L.cx, 0.5), Math.min(Wn.top, L.top) - 10, { colour: 0xff9a1a, size: 44 }));
+    if (ending === 'eat') {
+      k.at(2.0, sfx.crunch);
+      k.at(2.3, () => k.pop('CRISPY!', L.cx, L.top + L.h * 0.3, { colour: 0xd6cdbd }));
+    } else {
+      k.at(2.0, () => k.pop('*cough*', L.cx, L.top - 10, { colour: 0xd6cdbd, size: 28 }));
+    }
     return (t, dt) => {
       const rear = seg(t, 0, 0.3) * (1 - seg(t, 0.3, 0.45));
       const lunge = seg(t, 0.3, 0.45) * (1 - seg(t, 1.8, 2.1));
@@ -726,8 +828,7 @@ const drake: FinisherDef = {
         for (let i = 0; i < 3; i++) {
           flames.spawn(mx, my, p => {
             const sp = rand(560, 760);
-            const spread = rand(-0.18, 0.18);
-            const a = Math.atan2(ay, ax) + spread;
+            const a = Math.atan2(ay, ax) + rand(-0.18, 0.18);
             p.vx = Math.cos(a) * sp;
             p.vy = Math.sin(a) * sp;
             p.life = (len / sp) * rand(0.9, 1.3);
@@ -740,11 +841,12 @@ const drake: FinisherDef = {
         p.c.alpha = 1 - f * 0.85;
         p.c.tint = FLAME[Math.min(3, Math.floor(f * 4))]!;
       });
-      const char = seg(t, 0.7, 2.0);
-      const crumble = easeIn(seg(t, 2.0, 2.9));
+      const recover = ending === 'spare' ? seg(t, 2.0, 2.6) : 0;
+      const char = seg(t, 0.7, 2.0) * (1 - 0.8 * recover);
+      const crumble = ending === 'eat' ? easeIn(seg(t, 2.0, 2.9)) : 0;
       k.lose.set({
         filter: char ? `brightness(${1 - 0.8 * char}) sepia(${0.6 * char}) contrast(${1 + 0.3 * char})` : '',
-        x: Math.sin(t * 50) * 3 * char * (1 - crumble), sy: 1 - crumble, sx: 1 + 0.2 * crumble,
+        x: Math.sin(t * 50) * 3 * (char + recover * (1 - recover)) * (1 - crumble), sy: 1 - crumble, sx: 1 + 0.2 * crumble,
       });
       if (crumble > 0 && crumble < 1) {
         ash.spawn(L.cx + rand(-L.w * 0.4, L.w * 0.4), L.bottom - L.h * (1 - crumble) + rand(-10, 10), p => {
@@ -757,11 +859,13 @@ const drake: FinisherDef = {
         p.vy += 300 * dt;
         return p.c.y < k.ground;
       });
-      pile.scale.set(easeOutBack(seg(t, 2.0, 2.8)));
-      const eyesIn = easeOutBack(seg(t, 2.9, 3.15));
-      eyes.scale.set(eyesIn, eyesIn * (t % 1.6 < 0.12 ? 0.1 : 1));
-      if (t > 2.2 && Math.random() < 0.15) {
-        smoke.spawn(L.cx + rand(-30, 30), k.ground - L.h * 0.1, p => {
+      if (ending === 'eat') {
+        pile.scale.set(easeOutBack(seg(t, 2.0, 2.8)));
+        const eyesIn = easeOutBack(seg(t, 2.9, 3.15));
+        eyes.scale.set(eyesIn, eyesIn * (t % 1.6 < 0.12 ? 0.1 : 1));
+      }
+      if (t > 2.0 && Math.random() < (ending === 'eat' ? 0.15 : 0.3)) {
+        smoke.spawn(L.cx + rand(-30, 30), ending === 'eat' ? k.ground - L.h * 0.1 : L.top + L.h * 0.3, p => {
           p.vy = rand(-60, -30);
           p.vx = rand(-10, 10);
           p.life = 1.2;
@@ -778,8 +882,8 @@ const drake: FinisherDef = {
 // ---------------------------------------------------------------- cosmo
 const cosmo: FinisherDef = {
   name: 'UFO Abduction',
-  duration: 3.6,
-  run(k) {
+  duration: { eat: 3.6, spare: 3.0 },
+  run(k, ending) {
     const L = k.lose.box, d = k.dir;
     const ufo = new Container();
     const dome = new Graphics().ellipse(0, -16, 40, 30).fill({ color: 0xbfe6ff, alpha: 0.75 }).stroke({ width: 3, color: 0x000000 })
@@ -792,9 +896,9 @@ const cosmo: FinisherDef = {
       return l;
     });
     ufo.addChild(dome, saucer, ...lights);
-    const hoverY = Math.max(70, L.top - 70);
+    const hoverY = Math.max(56, L.top - 60);
     const beamH = k.ground - hoverY - 10;
-    const beam = new Graphics().poly([-35, 0, 35, 0, L.w * 0.7, beamH, -L.w * 0.7, beamH]).fill({ color: 0xfff3a8, alpha: 1 });
+    const beam = new Graphics().poly([-35, 0, 35, 0, L.w * 0.8, beamH, -L.w * 0.8, beamH]).fill({ color: 0xfff3a8, alpha: 1 });
     beam.position.set(L.cx, hoverY + 12);
     beam.alpha = 0;
     k.stage.addChild(beam, ufo);
@@ -804,24 +908,40 @@ const cosmo: FinisherDef = {
     twinkle.visible = false;
     k.stage.addChild(twinkle);
     const startX = L.cx + d * k.W * 0.35;
+    const beamOff = ending === 'eat' ? 2.2 : 1.8;
+    const leaveAt = ending === 'eat' ? 2.4 : 2.3;
     k.at(0.1, sfx.zip);
     k.at(0.75, sfx.beam);
     k.at(1.1, () => k.pop('ZWOOP!', L.cx + d * 90, hoverY + 60, { colour: 0xfff3a8 }));
-    k.at(2.4, sfx.zip);
-    k.at(3.05, sfx.chime);
-    let exitX = 0, exitY = 0;
+    k.at(leaveAt, sfx.zip);
+    if (ending === 'eat') k.at(3.05, sfx.chime);
+    else {
+      k.at(1.85, () => k.pop('OOPS!', L.cx, hoverY + 30, { colour: 0xffffff }));
+      k.at(2.15, sfx.thump);
+    }
+    let exitX = 0, exitY = 0, dropFrom = 0, dropRot = 0;
     return (t, dt) => {
       const arrive = easeOut(seg(t, 0, 0.7));
-      const leave = easeIn(seg(t, 2.4, 3.0));
+      const leave = easeIn(seg(t, leaveAt, leaveAt + 0.6));
       ufo.position.set(lerp(startX, L.cx, arrive) + leave * -d * k.W * 0.8, lerp(-80, hoverY, arrive) + Math.sin(t * 5) * 5 - leave * 220);
       ufo.scale.set(1 - 0.6 * leave);
       lights.forEach((l, i) => (l.alpha = Math.sin(t * 14 + i) > 0 ? 1 : 0.35));
-      if (leave >= 1) { exitX = ufo.x; exitY = ufo.y; }
-      const beamOn = seg(t, 0.75, 0.9) * (1 - seg(t, 2.2, 2.35));
+      if (leave >= 1 && !exitX) { exitX = ufo.x; exitY = ufo.y; }
+      const beamOn = seg(t, 0.75, 0.9) * (1 - seg(t, beamOff, beamOff + 0.15));
       beam.alpha = beamOn * (0.3 + 0.1 * Math.sin(t * 20));
-      const lift = easeIn(seg(t, 1.0, 2.2));
       const targetY = hoverY + 10 - L.bottom;
-      k.lose.set({ y: lift * targetY, sx: 1 - 0.85 * lift, sy: 1 - 0.85 * lift, rot: lift * 200 * d, opacity: 1 - seg(t, 2.0, 2.2) });
+      if (ending === 'eat') {
+        const lift = easeIn(seg(t, 1.0, 2.2));
+        k.lose.set({ y: lift * targetY, sx: 1 - 0.85 * lift, sy: 1 - 0.85 * lift, rot: lift * 200 * d, opacity: 1 - seg(t, 2.0, 2.2) });
+      } else if (t < beamOff) {
+        const lift = easeInOut(seg(t, 1.0, beamOff)) * 0.55;
+        k.lose.set({ y: lift * targetY, sx: 1 - 0.3 * lift, sy: 1 - 0.3 * lift, rot: lift * 120 * d });
+        dropFrom = k.lose.s.y;
+        dropRot = k.lose.s.rot;
+      } else {
+        const p = easeIn(seg(t, beamOff, beamOff + 0.35));
+        k.lose.set({ y: lerp(dropFrom, 0, p) + hop(seg(t, beamOff + 0.35, beamOff + 0.55), 16), sx: 1, sy: 1, rot: lerp(dropRot, 0, p) });
+      }
       if (beamOn > 0.5 && Math.random() < 0.5) {
         sparkles.spawn(L.cx + rand(-L.w * 0.5, L.w * 0.5), k.ground - rand(0, 40), p => {
           p.vy = -rand(120, 220);
@@ -832,7 +952,7 @@ const cosmo: FinisherDef = {
         p.c.alpha = 1 - p.age / p.life;
         return p.c.y > hoverY;
       });
-      twinkle.visible = t > 3.0;
+      twinkle.visible = ending === 'eat' && t > 3.0;
       if (twinkle.visible) {
         twinkle.position.set(exitX || ufo.x, exitY || ufo.y);
         const tw = seg(t, 3.0, 3.6);

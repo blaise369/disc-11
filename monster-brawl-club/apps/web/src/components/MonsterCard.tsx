@@ -18,7 +18,7 @@ const RARITY = {
   legendary: 'bg-nugget',
 } as const;
 
-export function MonsterCard({ m, onClick, selected, flip, ko, size = 'md', footer, dim }: {
+export function MonsterCard({ m, onClick, selected, flip, ko, size = 'md', footer, dim, artHidden }: {
   m: Card;
   onClick?: (() => void) | undefined;
   selected?: boolean | undefined;
@@ -27,6 +27,8 @@ export function MonsterCard({ m, onClick, selected, flip, ko, size = 'md', foote
   size?: 'sm' | 'md' | 'lg';
   footer?: React.ReactNode;
   dim?: boolean | undefined;
+  /** The monster has jumped out of its card (fight finishers). */
+  artHidden?: boolean | undefined;
 }) {
   useTick(1000);
   const growingMs = m.growingUntil ? new Date(m.growingUntil).getTime() - Date.now() : 0;
@@ -45,7 +47,9 @@ export function MonsterCard({ m, onClick, selected, flip, ko, size = 'md', foote
           <span className="rounded-md border-2 border-black bg-white px-1 text-[10px] font-bold">Lv{m.level}</span>
         </div>
         <div className="relative mx-auto aspect-square w-[85%]">
-          <MonsterArt parts={m.parts} palette={m.palette} flip={flip} ko={ko || m.status === 'graveyard'} idle={!ko} variant={m.variant} className={m.status === 'graveyard' ? 'opacity-60 grayscale' : ''} />
+          <div data-art className="h-full w-full" style={artHidden ? { visibility: 'hidden' } : undefined}>
+            <MonsterArt parts={m.parts} palette={m.palette} flip={flip} ko={ko || m.status === 'graveyard'} idle={!ko} variant={m.variant} className={`h-full w-full ${m.status === 'graveyard' ? 'opacity-60 grayscale' : ''}`} />
+          </div>
           <span className={`chip absolute left-0 top-1 text-[10px] capitalize ${RARITY[m.rarity]}`}>{m.rarity}</span>
           {m.variant !== 'normal' && <span className={`chip absolute right-0 top-1 text-[10px] ${VARIANT_INFO[m.variant].chip}`} title={`${VARIANT_INFO[m.variant].label}: forever strength boost`}>{VARIANT_INFO[m.variant].icon} ×{variantMultiplier(m.variant)}</span>}
           {growingMs > 0 && <span className="chip absolute bottom-1 left-1/2 -translate-x-1/2 whitespace-nowrap bg-goo text-[10px]">🌱 {formatDuration(growingMs)}</span>}

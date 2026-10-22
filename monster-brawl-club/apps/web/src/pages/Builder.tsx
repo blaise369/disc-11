@@ -4,7 +4,7 @@ import {
   BALANCE, isMonsterNameAllowed, PALETTE, PART_SLOTS, randomLook, skillTotalForTier, SPECIES, STRATEGIES,
   type GrowTier, type MonsterCard as Card, type MonsterPalette, type MonsterParts, type PartDef, type Skills,
 } from '@mbc/shared';
-import { MonsterArt } from '../art/MonsterArt';
+import { LEGLESS_SPECIES, MonsterArt } from '../art/MonsterArt';
 import { MonsterCard } from '../components/MonsterCard';
 import { STRATEGY_INFO } from '../components/strategy';
 import { Button, Modal, Panel, Tabs, Title } from '../components/ui';
@@ -82,7 +82,11 @@ export function Builder() {
         <div className="space-y-4">
           <Panel>
             <Tabs tabs={SLOT_TABS} value={slot} onChange={setSlot} />
-            {slot === 'colours' ? (
+            {slot === 'legs' && LEGLESS_SPECIES.includes(parts.species) ? (
+              <p className="py-6 text-center font-semibold">
+                {parts.species === 'slime' ? 'Slimes ooze around in a puddle of goo: no legs needed!' : 'Ghouls float: no legs needed!'}
+              </p>
+            ) : slot === 'colours' ? (
               <div className="space-y-3">
                 {(['body', 'accent'] as const).map(k => (
                   <div key={k}>

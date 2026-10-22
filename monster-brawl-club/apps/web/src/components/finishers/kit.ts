@@ -115,8 +115,12 @@ export interface Kit {
   arena: Puppet;
   /** +1 if the loser is to the right of the winner. */
   dir: 1 | -1;
-  /** y of the ground line (bottom of the cards). */
+  /** y of the stage floor the fighters stand on. */
   ground: number;
+  /** Size of each fighter's square art element. */
+  S: number;
+  /** Where each fighter's art sits inside its card (for flying back in, or into a card). */
+  cardArt: { win: Box; lose: Box };
   col: Colours;
   /** Run fn once when the timeline passes `time` seconds. */
   at: (time: number, fn: () => void) => void;

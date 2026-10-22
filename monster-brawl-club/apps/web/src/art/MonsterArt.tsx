@@ -13,6 +13,8 @@ interface Anchors {
 
 interface Ctx {
   a: Anchors;
+  /** Unique per render, for gradient ids. */
+  uid: string;
   body: string;
   accent: string;
   dark: string;
@@ -51,90 +53,299 @@ function fuzzPath(cx: number, cy: number, r: number, bumps: number, depth: numbe
 interface SpeciesDef {
   a: Anchors;
   shape: string;
+  /** Behind the body (tails, wings, antennae, auras). */
   back?: Part;
+  /** The species' material, clipped to the body (fur, metal, goo, stone...). */
+  texture?: Part;
+  /** On top of the body outline, under the face. */
   front?: Part;
+  /** Translucent bodies (slime, ghoul). */
+  bodyOpacity?: number;
+  /** Replaces legs: slimes sit in a puddle, ghouls float. */
+  base?: Part;
+}
+
+// Deterministic "random" so textures look organic but never change between renders.
+const hash = (i: number) => {
+  const x = Math.sin(i * 127.1 + 311.7) * 43758.5453;
+  return x - Math.floor(x);
+};
+
+/** Short curved strokes radiating out from a centre: fur. */
+function furStrands(cx: number, cy: number, maxR: number, colour: string, opacity: number, seed: number) {
+  const d: string[] = [];
+  for (let i = 0; i < 90; i++) {
+    const r = maxR * Math.sqrt(hash(i + seed));
+    const a = hash(i * 3 + seed) * Math.PI * 2;
+    const x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r;
+    const len = 6 + hash(i * 7 + seed) * 6;
+    const out = a + 0.5;
+    d.push(`M${x.toFixed(1)} ${y.toFixed(1)} q${(Math.cos(out) * len * 0.6).toFixed(1)} ${(Math.sin(out) * len * 0.6).toFixed(1)} ${(Math.cos(a) * len).toFixed(1)} ${(Math.sin(a) * len + 3).toFixed(1)}`);
+  }
+  return <path d={d.join(' ')} fill="none" stroke={colour} strokeWidth={2} strokeLinecap="round" opacity={opacity} />;
 }
 
 const SPECIES: Record<string, SpeciesDef> = {
-  furball: { a: { top: 54, eyeY: 108, mouthY: 142, armY: 126, halfW: 62 }, shape: fuzzPath(100, 120, 60, 26, 7) },
+  // Shaggy fur all over, with a cowlick on top.
+  furball: {
+    a: { top: 54, eyeY: 108, mouthY: 142, armY: 126, halfW: 62 },
+    shape: fuzzPath(100, 120, 60, 26, 7),
+    texture: c => <>{furStrands(100, 120, 62, c.dark, 0.4, 1)}{furStrands(100, 116, 58, c.light, 0.45, 50)}</>,
+    front: c => <path d="M96 58 C88 40 104 34 108 44 C110 50 102 52 100 47" fill="none" stroke={INK} strokeWidth={5} strokeLinecap="round" />,
+    back: c => <path d={fuzzPath(100, 120, 66, 26, 9)} fill={c.dark} opacity={0.5} />,
+  },
+  // Lumpy, stitched together, glowing toxic blisters, a drip of ooze.
   mutant: {
     a: { top: 50, eyeY: 94, mouthY: 130, armY: 128, halfW: 62 },
     shape: 'M100 50 C150 45 170 95 162 135 C156 175 120 182 98 182 C60 182 36 170 38 128 C40 92 60 55 100 50Z',
-    front: c => <g fill={c.accent} opacity={0.75} stroke={c.dark} strokeWidth={2}><circle cx={138} cy={78} r={9} /><circle cx={150} cy={96} r={5} /></g>,
+    texture: () => (
+      <g>
+        {[[136, 82, 10], [150, 104, 6], [58, 150, 8], [70, 166, 5], [148, 150, 7]].map(([x, y, r]) => (
+          <g key={`${x}${y}`}>
+            <circle cx={x} cy={y} r={r! + 3} fill="#9bff3a" opacity={0.35} />
+            <circle cx={x} cy={y} r={r} fill="#9bff3a" stroke={INK} strokeWidth={2} />
+            <circle cx={x! - r! * 0.3} cy={y! - r! * 0.3} r={r! * 0.35} fill="#e8ffd0" />
+          </g>
+        ))}
+      </g>
+    ),
+    front: () => (
+      <g stroke={INK} strokeWidth={2.5} strokeLinecap="round" fill="none">
+        <path d="M58 82 C72 98 70 116 84 128" />
+        {[0, 1, 2, 3].map(i => {
+          const x = 61 + i * 7, y = 88 + i * 11;
+          return <path key={i} d={`M${x - 5} ${y + 3} L${x + 5} ${y - 3}`} />;
+        })}
+      </g>
+    ),
   },
+  // Brushed metal plates, bolts, a chest screen and a blinking antenna.
   mechanoid: {
     a: { top: 56, eyeY: 96, mouthY: 142, armY: 126, halfW: 56 },
     shape: 'M56 56 H144 Q156 56 156 68 V170 Q156 182 144 182 H56 Q44 182 44 170 V68 Q44 56 56 56Z',
+    texture: c => (
+      <g>
+        <rect x={40} y={50} width={120} height={140} fill={`url(#metal-${c.uid})`} />
+        <path d="M44 118 H156 M100 118 V182" stroke={INK} strokeWidth={2.5} opacity={0.5} />
+        {[60, 66, 72].map(y => <path key={y} d={`M${132} ${y + 64} H${150}`} stroke={INK} strokeWidth={2} opacity={0.4} />)}
+      </g>
+    ),
     front: c => (
-      <g fill={c.light} stroke={c.dark} strokeWidth={1.5}>
-        {[[54, 66], [146, 66], [54, 172], [146, 172]].map(([x, y]) => <circle key={`${x}${y}`} cx={x} cy={y} r={3.5} />)}
-        <rect x={84} y={160} width={32} height={10} rx={3} fill={c.accent} />
+      <g>
+        <g fill="#d8dde5" stroke={INK} strokeWidth={1.5}>
+          {[[52, 64], [148, 64], [52, 174], [148, 174], [52, 118], [148, 118]].map(([x, y]) => <circle key={`${x}${y}`} cx={x} cy={y} r={3.5} />)}
+        </g>
+        <rect x={62} y={152} width={30} height={20} rx={4} fill="#1d2330" stroke={INK} strokeWidth={2.5} />
+        {[0, 1, 2].map(i => <rect key={i} x={66 + i * 8} y={168 - (6 + ((i * 5) % 9))} width={5} height={6 + ((i * 5) % 9)} fill={i === 1 ? c.accent : '#7dff3a'} />)}
+        <circle cx={124} cy={162} r={8} fill="#c9cfd8" stroke={INK} strokeWidth={2.5} />
+        <path d="M124 162 L129 157" stroke={INK} strokeWidth={2.5} strokeLinecap="round" />
+      </g>
+    ),
+    back: c => (
+      <g>
+        <path d="M138 58 L146 28" stroke={INK} strokeWidth={4} strokeLinecap="round" />
+        <circle cx={146} cy={26} r={6} fill={c.accent} stroke={INK} strokeWidth={2.5}>
+          <animate attributeName="opacity" values="1;0.3;1" dur="1.2s" repeatCount="indefinite" />
+        </circle>
       </g>
     ),
   },
+  // Wobbly, see-through goo with bubbles inside and a shiny highlight. No legs: it sits in a puddle.
   slime: {
     a: { top: 54, eyeY: 102, mouthY: 138, armY: 132, halfW: 64 },
     shape: 'M100 54 C145 54 165 110 168 150 C170 172 156 182 140 178 C132 176 128 188 118 186 C108 184 104 176 96 180 C84 188 76 176 64 180 C44 184 32 172 34 150 C38 110 55 54 100 54Z',
-    front: () => <ellipse cx={74} cy={84} rx={10} ry={6} fill="#fff" opacity={0.55} transform="rotate(-30 74 84)" />,
+    bodyOpacity: 0.86,
+    texture: c => (
+      <g>
+        <ellipse cx={100} cy={176} rx={70} ry={22} fill={c.dark} opacity={0.3} />
+        {[[76, 150, 7], [122, 124, 5], [108, 164, 6], [66, 118, 4], [138, 156, 4], [92, 132, 3]].map(([x, y, r]) => (
+          <circle key={`${x}${y}`} cx={x} cy={y} r={r} fill={c.light} stroke="#fff" strokeWidth={1.5} opacity={0.6} />
+        ))}
+      </g>
+    ),
+    front: () => (
+      <g fill="#fff">
+        <ellipse cx={72} cy={86} rx={12} ry={7} opacity={0.6} transform="rotate(-35 72 86)" />
+        <circle cx={86} cy={74} r={3.5} opacity={0.7} />
+      </g>
+    ),
+    base: c => <ellipse cx={100} cy={184} rx={76} ry={11} fill={c.body} stroke={INK} strokeWidth={3} opacity={0.85} />,
   },
+  // Shaggy shoulders, a light muzzle, a chest tuft and a bushy tail.
   beast: {
     a: { top: 52, eyeY: 94, mouthY: 134, armY: 122, halfW: 64 },
     shape: 'M60 60 C80 48 120 48 140 60 C168 76 172 140 160 168 C150 184 50 184 40 168 C28 140 32 76 60 60Z',
+    texture: c => (
+      <g>
+        <path d="M70 150 L80 160 L86 150 L94 164 L100 152 L106 164 L114 150 L120 160 L130 150 L130 190 L70 190Z" fill={c.light} />
+        {furStrands(100, 110, 70, c.dark, 0.25, 7)}
+      </g>
+    ),
+    front: c => (
+      <g>
+        <ellipse cx={100} cy={c.a.mouthY + 4} rx={34} ry={20} fill={c.light} stroke={INK} strokeWidth={2.5} />
+        <ellipse cx={100} cy={c.a.mouthY - 12} rx={8} ry={5} fill={INK} />
+        {[-1, 1].map(k => (
+          <path key={k} d={k < 0 ? 'M44 92 L34 80 L50 84 L44 70 L60 78 L58 64 L70 72' : 'M156 92 L166 80 L150 84 L156 70 L140 78 L142 64 L130 72'}
+            fill="none" stroke={INK} strokeWidth={3} strokeLinejoin="round" />
+        ))}
+      </g>
+    ),
+    back: c => (
+      <path d="M150 160 C186 160 196 120 184 96 C200 108 204 136 192 156 C204 150 206 166 196 172 C184 182 162 180 150 172Z"
+        fill={c.body} stroke={INK} strokeWidth={3.5} strokeLinejoin="round" />
+    ),
   },
+  // Shiny shell split down the middle, segment lines, extra side legs and mandibles.
   bug: {
     a: { top: 50, eyeY: 86, mouthY: 112, armY: 118, halfW: 52 },
     shape: 'M100 50 C126 50 144 66 144 90 C144 104 138 112 132 116 C152 124 158 142 156 156 C152 176 128 184 100 184 C72 184 48 176 44 156 C42 142 48 124 68 116 C62 112 56 104 56 90 C56 66 74 50 100 50Z',
-    front: c => <path d="M66 117 Q100 128 134 117" fill="none" stroke={c.dark} strokeWidth={3} />,
+    texture: c => (
+      <g fill="none">
+        <path d="M100 118 V186" stroke={INK} strokeWidth={2.5} opacity={0.6} />
+        {[138, 154, 170].map(y => <path key={y} d={`M48 ${y} Q100 ${y + 10} 152 ${y}`} stroke={c.dark} strokeWidth={2.5} opacity={0.5} />)}
+        <path d="M60 128 Q58 156 72 172" stroke="#fff" strokeWidth={6} strokeLinecap="round" opacity={0.35} />
+        <path d="M70 64 Q64 80 66 98" stroke="#fff" strokeWidth={5} strokeLinecap="round" opacity={0.35} />
+      </g>
+    ),
+    front: c => (
+      <g fill={c.dark} stroke={INK} strokeWidth={2} strokeLinejoin="round">
+        <path d="M82 110 C72 114 72 126 80 128 C78 122 80 116 86 114Z" />
+        <path d="M118 110 C128 114 128 126 120 128 C122 122 120 116 114 114Z" />
+        <path d="M66 117 Q100 128 134 117" fill="none" stroke={c.dark} strokeWidth={3} />
+      </g>
+    ),
+    back: () => (
+      <g fill="none" stroke={INK} strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round">
+        <path d="M50 134 L28 126 L18 142" /><path d="M48 150 L26 152 L20 170" />
+        <path d="M150 134 L172 126 L182 142" /><path d="M152 150 L174 152 L180 170" />
+      </g>
+    ),
   },
+  // See-through and glowing, fading out at the bottom. Floats, so no legs.
   ghoul: {
     a: { top: 40, eyeY: 92, mouthY: 130, armY: 118, halfW: 60 },
     shape: 'M100 40 C145 40 160 80 160 120 L160 180 L145 166 L130 182 L115 166 L100 182 L85 166 L70 182 L55 166 L40 180 L40 120 C40 80 55 40 100 40Z',
+    bodyOpacity: 0.8,
+    texture: c => (
+      <g>
+        <rect x={30} y={40} width={140} height={150} fill={`url(#fade-${c.uid})`} />
+        <path d="M58 140 C70 128 84 150 96 138 M110 156 C122 144 134 164 146 150" fill="none" stroke="#fff" strokeWidth={3} opacity={0.4} strokeLinecap="round" />
+      </g>
+    ),
+    back: c => <path d="M100 30 C152 30 170 76 170 120 L170 192 L30 192 L30 120 C30 76 48 30 100 30Z" fill={c.light} opacity={0.25} />,
+    base: () => <ellipse cx={100} cy={200} rx={44} ry={6} fill="#000" opacity={0.15} />,
   },
+  // Speckled stone with cracks, pebbles and a patch of moss on top.
   rockling: {
     a: { top: 50, eyeY: 100, mouthY: 138, armY: 126, halfW: 62 },
     shape: 'M70 58 L118 48 L155 72 L166 120 L156 168 L110 184 L58 178 L36 140 L40 88Z',
+    texture: c => (
+      <g>
+        {Array.from({ length: 60 }, (_, i) => (
+          <circle key={i} cx={36 + hash(i) * 130} cy={48 + hash(i + 99) * 136} r={1 + hash(i + 7) * 2.2} fill={i % 3 ? c.dark : c.light} opacity={0.55} />
+        ))}
+        <path d="M60 50 Q72 66 86 58 Q98 70 112 56 Q126 66 138 58 L160 40 L60 40Z" fill="#5cae4a" stroke="#2f6a24" strokeWidth={2} />
+        <path d="M44 120 L60 112 L70 120 M150 96 L138 104" fill="none" stroke={c.light} strokeWidth={2.5} opacity={0.7} />
+      </g>
+    ),
     front: c => <path d="M120 70 L132 92 M60 140 L74 150 L70 166 M140 140 L150 152" stroke={c.dark} strokeWidth={3} fill="none" strokeLinecap="round" />,
   },
+  // Leafy: a sprout on top, leaf veins on the body and a collar of leaves.
   sprout: {
     a: { top: 72, eyeY: 112, mouthY: 146, armY: 132, halfW: 58 },
     shape: 'M100 70 C140 70 158 100 158 128 C158 162 134 182 100 182 C66 182 42 162 42 128 C42 100 60 70 100 70Z',
+    texture: c => (
+      <g fill="none" stroke={c.dark} strokeWidth={2.5} opacity={0.35} strokeLinecap="round">
+        <path d="M100 160 V186" />
+        {[-1, 1].map(k => <path key={k} d={`M100 172 Q${100 + k * 22} ${166} ${100 + k * 40} ${150} M100 182 Q${100 + k * 26} ${178} ${100 + k * 48} ${166}`} />)}
+      </g>
+    ),
     back: c => (
       <g stroke={INK} strokeWidth={3} strokeLinejoin="round">
-        <path d="M100 74 Q98 52 104 36" fill="none" stroke="#2f7a2a" strokeWidth={5} strokeLinecap="round" />
-        <path d="M103 40 C120 22 146 26 150 34 C138 50 116 52 103 40Z" fill="#5cc24a" />
-        <path d="M101 50 C86 34 62 38 58 46 C70 60 90 60 101 50Z" fill="#7ad65f" />
-        <circle cx={104} cy={34} r={6} fill={c.accent} />
+        {[-2, -1, 1, 2].map(i => (
+          <path key={i} transform={`rotate(${i * 28} 100 84)`} d="M100 84 C88 70 92 54 100 46 C108 54 112 70 100 84Z" fill={i % 2 ? '#5cc24a' : '#7ad65f'} />
+        ))}
+        <path d="M100 74 Q98 52 104 32" fill="none" stroke="#2f7a2a" strokeWidth={5} strokeLinecap="round" />
+        <path d="M103 36 C120 18 146 22 150 30 C138 46 116 48 103 36Z" fill="#5cc24a" />
+        <path d="M101 46 C86 30 62 34 58 42 C70 56 90 56 101 46Z" fill="#7ad65f" />
+        <circle cx={104} cy={30} r={7} fill={c.accent} />
       </g>
     ),
   },
+  // Scales, gill slits, a dorsal fin and a big tail fin.
   fishling: {
     a: { top: 56, eyeY: 102, mouthY: 140, armY: 126, halfW: 58 },
     shape: 'M100 56 C140 56 160 92 160 124 C160 160 134 184 100 184 C66 184 40 160 40 124 C40 92 60 56 100 56Z',
-    back: c => <path d="M78 64 C84 34 112 26 128 36 C118 44 116 56 120 66Z" fill={c.accent} stroke={INK} strokeWidth={3} strokeLinejoin="round" />,
-    front: c => <g fill="none" stroke={c.dark} strokeWidth={2.5} opacity={0.7}><path d="M136 110 q8 8 0 16" /><path d="M144 116 q6 6 0 12" /></g>,
+    texture: c => (
+      <g>
+        <ellipse cx={100} cy={168} rx={52} ry={26} fill={c.light} opacity={0.7} />
+        <g fill="none" stroke={c.dark} strokeWidth={1.8} opacity={0.45}>
+          {Array.from({ length: 7 }, (_, row) => Array.from({ length: 7 }, (__, col) => {
+            const x = 44 + col * 18 + (row % 2) * 9, y = 70 + row * 14;
+            return <path key={`${row}-${col}`} d={`M${x - 9} ${y} A9 9 0 0 0 ${x + 9} ${y}`} />;
+          }))}
+        </g>
+      </g>
+    ),
+    back: c => (
+      <g fill={c.accent} stroke={INK} strokeWidth={3} strokeLinejoin="round">
+        <path d="M78 64 C84 34 112 26 128 36 C118 44 116 56 120 66Z" />
+        <path d="M46 146 C20 130 6 140 2 150 C14 154 14 168 4 178 C20 182 34 172 48 160Z" />
+        <path d="M14 152 L36 156 M10 168 L36 162" fill="none" strokeWidth={2} />
+      </g>
+    ),
+    front: c => <g fill="none" stroke={c.dark} strokeWidth={3} opacity={0.75} strokeLinecap="round"><path d="M134 104 q8 9 0 18" /><path d="M143 108 q6 7 0 14" /></g>,
   },
+  // Dragon: wings, back spikes, belly plates and a spade-tipped tail.
   drake: {
     a: { top: 50, eyeY: 92, mouthY: 128, armY: 132, halfW: 60 },
     shape: 'M100 50 C140 50 150 94 160 134 C168 176 132 184 100 184 C68 184 32 176 40 134 C50 94 60 50 100 50Z',
-    back: c => (
-      <g fill={c.accent} stroke={INK} strokeWidth={3} strokeLinejoin="round" opacity={0.95}>
-        <path d="M58 104 L6 70 L18 96 L2 108 L22 118 L14 138 L54 130Z" />
-        <path d="M142 104 L194 70 L182 96 L198 108 L178 118 L186 138 L146 130Z" />
+    texture: c => (
+      <g>
+        <ellipse cx={100} cy={160} rx={34} ry={34} fill={c.light} />
+        {[138, 150, 162, 174].map(y => <path key={y} d={`M68 ${y} Q100 ${y + 7} 132 ${y}`} fill="none" stroke={c.dark} strokeWidth={2.5} opacity={0.6} />)}
+        <g fill="none" stroke={c.dark} strokeWidth={1.6} opacity={0.35}>
+          {Array.from({ length: 5 }, (_, row) => Array.from({ length: 6 }, (__, col) => {
+            const x = 46 + col * 22 + (row % 2) * 11, y = 70 + row * 14;
+            return <path key={`${row}-${col}`} d={`M${x - 8} ${y} Q${x} ${y + 9} ${x + 8} ${y}`} />;
+          }))}
+        </g>
       </g>
     ),
-    front: c => <path d="M84 166 Q100 156 116 166" fill="none" stroke={c.light} strokeWidth={4} />,
+    back: c => (
+      <g stroke={INK} strokeWidth={3} strokeLinejoin="round">
+        <g fill={c.accent} opacity={0.95}>
+          <path d="M58 104 L6 70 L18 96 L2 108 L22 118 L14 138 L54 130Z" />
+          <path d="M142 104 L194 70 L182 96 L198 108 L178 118 L186 138 L146 130Z" />
+        </g>
+        <path d="M60 172 C30 184 14 170 8 156 L2 146 L18 150 L12 160" fill="none" stroke={INK} strokeWidth={10} strokeLinecap="round" />
+        <path d="M60 172 C30 184 14 170 8 156" fill="none" stroke={c.body} strokeWidth={5} strokeLinecap="round" />
+        <path d="M8 156 L-4 140 L14 144 L18 128 L22 152Z" fill={c.accent} />
+        {[0, 1, 2, 3].map(i => <path key={i} d={`M${70 + i * 20} ${56 - (i === 1 || i === 2 ? 6 : 0)} l8 -18 l8 18Z`} fill={c.accent} />)}
+      </g>
+    ),
   },
+  // A little planet: a starry night-sky body with a ring around it.
   cosmo: {
     a: { top: 58, eyeY: 108, mouthY: 142, armY: 124, halfW: 60 },
     shape: 'M100 58 A61 61 0 1 1 99.9 58Z',
-    front: c => (
+    texture: c => (
       <g>
-        <ellipse cx={100} cy={128} rx={86} ry={16} fill="none" stroke={c.accent} strokeWidth={7} opacity={0.85} transform="rotate(-12 100 128)" />
-        {[[70, 86], [128, 78], [140, 150], [62, 156]].map(([x, y]) => <text key={`${x}`} x={x} y={y} fontSize={10} fill="#fff" opacity={0.85}>✦</text>)}
+        <circle cx={100} cy={119} r={62} fill={`url(#space-${c.uid})`} />
+        {Array.from({ length: 22 }, (_, i) => (
+          <circle key={i} cx={42 + hash(i + 3) * 116} cy={60 + hash(i + 40) * 118} r={0.8 + hash(i + 70) * 1.6} fill="#fff" opacity={0.9} />
+        ))}
+        <path d="M60 92 A50 50 0 0 1 104 64" fill="none" stroke="#fff" strokeWidth={5} opacity={0.35} strokeLinecap="round" />
       </g>
     ),
+    front: c => <ellipse cx={100} cy={128} rx={86} ry={16} fill="none" stroke={c.accent} strokeWidth={7} opacity={0.85} transform="rotate(-12 100 128)" />,
+    back: c => <ellipse cx={100} cy={128} rx={86} ry={16} fill="none" stroke={c.accent} strokeWidth={7} opacity={0.5} transform="rotate(-12 100 128)" />,
   },
 };
+
+/** Species with no legs (the builder hides the legs choice for these). */
+export const LEGLESS_SPECIES = Object.keys(SPECIES).filter(k => SPECIES[k]!.base);
 
 // ---------- eyes ----------
 function eyePositions(c: Ctx, n: 1 | 2 | 3): [number, number][] {
@@ -504,7 +715,7 @@ function MonsterArtImpl({ parts, palette, flip, ko = false, idle = false, classN
   const accentRaw = PALETTE[palette.accent] ?? PALETTE[1];
   // Avoid invisible details when both colours match.
   const accent = accentRaw === body ? mix(accentRaw, '#ffffff', 0.45) : accentRaw;
-  const c: Ctx = { a: sp.a, body, accent, dark: mix(body, '#120018', 0.55), light: mix(body, '#ffffff', 0.45), ko };
+  const c: Ctx = { a: sp.a, uid, body, accent, dark: mix(body, '#120018', 0.55), light: mix(body, '#ffffff', 0.45), ko };
   const s = 100 - sp.a.halfW + 8;
   const arm = ARMS[parts.arms] ?? ARMS.stubby!;
   const leg = LEGS[parts.legs] ?? LEGS.stumpy!;
@@ -516,16 +727,37 @@ function MonsterArtImpl({ parts, palette, flip, ko = false, idle = false, classN
       <svg viewBox="-24 -54 248 256" className="block h-full w-full overflow-visible" role="img" aria-label={`${parts.species} monster`}>
         <defs>
           <clipPath id={`clip-${uid}`}><path d={sp.shape} /></clipPath>
+          <linearGradient id={`metal-${uid}`} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#fff" stopOpacity={0.55} />
+            <stop offset="0.45" stopColor="#fff" stopOpacity={0} />
+            <stop offset="0.55" stopColor="#000" stopOpacity={0.05} />
+            <stop offset="1" stopColor="#000" stopOpacity={0.3} />
+          </linearGradient>
+          <linearGradient id={`fade-${uid}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0.45" stopColor="#fff" stopOpacity={0} />
+            <stop offset="1" stopColor="#fff" stopOpacity={0.6} />
+          </linearGradient>
+          <radialGradient id={`space-${uid}`} cx="0.35" cy="0.3" r="0.9">
+            <stop offset="0" stopColor="#3a1f7a" stopOpacity={0.25} />
+            <stop offset="1" stopColor="#0b0624" stopOpacity={0.75} />
+          </radialGradient>
         </defs>
         <ellipse cx={100} cy={194} rx={68} ry={8} fill="#000" opacity={0.2} />
         <g transform={flip ? 'translate(200 0) scale(-1 1)' : undefined}>
-          {parts.legs === 'hover' && <ellipse cx={100} cy={190} rx={52} ry={9} fill={accent} opacity={0.6} />}
-          {mirror(leg(c))}
+          {sp.base ? sp.base(c) : (
+            <>
+              {parts.legs === 'hover' && <ellipse cx={100} cy={190} rx={52} ry={9} fill={accent} opacity={0.6} />}
+              {mirror(leg(c))}
+            </>
+          )}
           {sp.back?.(c)}
           {(HEADS[parts.head] ?? HEADS.none!)(c)}
           {mirror(arm(c, s, sp.a.armY))}
-          <path d={sp.shape} fill={body} />
-          <g clipPath={`url(#clip-${uid})`}>{(PATTERNS[parts.pattern] ?? PATTERNS.plain!)(c)}</g>
+          <path d={sp.shape} fill={body} opacity={sp.bodyOpacity ?? 1} />
+          <g clipPath={`url(#clip-${uid})`}>
+            {(PATTERNS[parts.pattern] ?? PATTERNS.plain!)(c)}
+            {sp.texture?.(c)}
+          </g>
           <path d={sp.shape} fill="none" stroke={INK} strokeWidth={W + 1} strokeLinejoin="round" />
           {sp.front?.(c)}
           {(EYES[parts.eyes] ?? EYES.googly!)(c)}

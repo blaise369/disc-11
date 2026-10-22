@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   beats, CHAT_PHRASES, hashSeed, STRATEGIES, type FightSideView, type FightView, type Side, type Strategy,
 } from '@mbc/shared';
 import { MonsterCard } from '../components/MonsterCard';
-import { Finisher } from '../components/finishers/Finisher';
+import { Finisher, type FighterLook, type Outcome } from '../components/finishers/Finisher';
 import { finisherFor } from '../components/finishers/finishers';
 import { STAKE_INFO } from '../components/stakes';
 import { StrategyCycle, STRATEGY_INFO } from '../components/strategy';
@@ -35,7 +35,7 @@ function stakeText(f: FightView): string | null {
   return `${win.monster.name} ate ${lose.monster.name}! +${gain} strength. ${lose.monster.name} went to the graveyard.`;
 }
 
-function SideCard({ side, ko, bubble, flip, cardRef }: { side: FightSideView; ko: boolean; bubble: string | null; flip?: boolean; cardRef: (el: HTMLDivElement | null) => void }) {
+function SideCard({ side, ko, bubble, flip, cardRef, artHidden }: { side: FightSideView; ko: boolean; bubble: string | null; flip?: boolean; cardRef: (el: HTMLDivElement | null) => void; artHidden: boolean }) {
   return (
     <div className="relative flex flex-col items-center gap-1">
       <div className="text-center text-sm font-semibold text-white text-outline">
@@ -44,7 +44,7 @@ function SideCard({ side, ko, bubble, flip, cardRef }: { side: FightSideView; ko
         {side.luck > 0 && <span className="chip ml-1 bg-goo text-ink">🍀</span>}
       </div>
       <div className="relative">
-        <div ref={cardRef}><MonsterCard m={{ ...side.monster, locked: false, potions: [] }} flip={flip} ko={ko} size="sm" /></div>
+        <div ref={cardRef}><MonsterCard m={{ ...side.monster, locked: false, potions: [] }} flip={flip} ko={ko} size="sm" artHidden={artHidden} /></div>
         {bubble && <div className="pop-in absolute -top-6 left-1/2 z-20 -translate-x-1/2 whitespace-nowrap rounded-xl border-[3px] border-black bg-white px-3 py-1 font-semibold shadow-[0_3px_0_#000]">{bubble}</div>}
       </div>
       {side.fightStrength !== side.monster.power && <div className="text-xs text-white">💪 Potion: {side.fightStrength} strength</div>}
@@ -106,6 +106,19 @@ export function FightScreen() {
   }, [socket, id]);
 
   const live = animateSpin && !f?.result?.abandonedBy;
+  // What the finisher plays: the winner's species attack, then the stake's ending.
+  const fin = useMemo(() => {
+    if (!f?.result) return null;
+    const r = f.result;
+    const w = r.winnerSide === 'A' ? f.a : f.b;
+    const l = r.winnerSide === 'A' ? f.b : f.a;
+    const outcome: Outcome = !r.stake ? { kind: 'ko' }
+      : r.stake.applied === 'eat' ? { kind: 'eat' }
+      : r.stake.applied === 'collect' ? { kind: 'collect' }
+      : { kind: 'bite', amount: Math.max(0, l.monster.strength - r.stake.loserStrength) };
+    const look = (m: FightSideView['monster']): FighterLook => ({ parts: m.parts, palette: m.palette, variant: m.variant });
+    return { outcome, winner: look(w.monster), loser: look(l.monster) };
+  }, [f?.id, !!f?.result]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (spinDone && f?.result && live && finisher === 'none') setFinisher('playing');
   }, [spinDone, f?.result, live, finisher]);
@@ -129,6 +142,8 @@ export function FightScreen() {
   const showResult = !!f.result && spinDone && finisher !== 'playing' && !(live && finisher === 'none');
   const winnerSide = f.result?.winnerSide;
   const winnerMonster = winnerSide === 'A' ? f.a.monster : f.b.monster;
+  // After a finisher, a bitten or knocked-out loser is fine; an eaten or captured one isn't.
+  const loserShowsKo = finisher !== 'finished' || fin?.outcome.kind === 'eat' || fin?.outcome.kind === 'collect';
   const won = f.result?.winnerSide === mySide;
   const loserSide = f.result ? (f.result.winnerSide === 'A' ? 'B' : 'A') : null;
   const lastRound = f.rounds[f.rounds.length - 1];
@@ -148,19 +163,19 @@ export function FightScreen() {
           {f.kind === 'boss' ? '👑 Boss fight' : f.kind === 'practice' ? '🎯 Practice' : '⚔️ PvP'} · {f.roundsPlanned} skill round{f.roundsPlanned === 1 ? '' : 's'}
         </div>
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-          <SideCard side={f.a} ko={showResult && !finisherOn && loserSide === 'A'} bubble={bubbles.A} cardRef={setCardA} />
+          <SideCard side={f.a} ko={showResult && loserSide === 'A' && loserShowsKo} bubble={bubbles.A} cardRef={setCardA} artHidden={finisher === 'playing'} />
           <div className="flex flex-col items-center">
             <div className="mb-1 flex w-full justify-between gap-4 font-display text-xl text-outline">
               <span className="text-side-a">{pct(share)}</span>
               <span className="text-side-b">{pct(1 - share)}</span>
             </div>
-            <Wheel shareA={share} spinRoll={animateSpin && f.spin ? f.spin.roll : null} onSpinEnd={() => setSpinDone(true)} size={small ? 140 : 260} />
+            <div style={{ opacity: finisherOn ? 0.15 : 1, transition: 'opacity 0.4s' }}><Wheel shareA={share} spinRoll={animateSpin && f.spin ? f.spin.roll : null} onSpinEnd={() => setSpinDone(true)} size={small ? 140 : 260} /></div>
           </div>
-          <SideCard side={f.b} ko={showResult && !finisherOn && loserSide === 'B'} bubble={bubbles.B} flip cardRef={setCardB} />
+          <SideCard side={f.b} ko={showResult && loserSide === 'B' && loserShowsKo} bubble={bubbles.B} flip cardRef={setCardB} artHidden={finisher === 'playing'} />
         </div>
-        {finisherOn && arena && cardA && cardB && winnerSide && (
-          <Finisher arena={arena} winnerEl={winnerSide === 'A' ? cardA : cardB} loserEl={winnerSide === 'A' ? cardB : cardA}
-            species={winnerMonster.species} palette={winnerMonster.palette} onDone={() => setFinisher('finished')} />
+        {finisherOn && arena && cardA && cardB && winnerSide && fin && (
+          <Finisher arena={arena} winnerCard={winnerSide === 'A' ? cardA : cardB} loserCard={winnerSide === 'A' ? cardB : cardA}
+            winner={fin.winner} loser={fin.loser} outcome={fin.outcome} onDone={() => setFinisher('finished')} />
         )}
       </div>
 

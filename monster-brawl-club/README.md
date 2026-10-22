@@ -68,24 +68,35 @@ Every grown monster rolls a variant. Variants give a permanent strength boost on
 
 The base strength is what stakes, levels and the dojo change. The card shows the boosted strength. Market stock can roll variants too and is priced by boosted strength. Chances and boosts live in `balance.ts`.
 
+## Monster bodies
+
+Each body type has its own look as well as its own shape. Slimes are see-through goo with bubbles inside, sitting in a puddle. Furballs are shaggy fur. Mechanoids are metal plates with bolts, a chest screen and a blinking antenna. Mutants are stitched together with glowing toxic blisters. Beasts have a muzzle, shaggy shoulders and a bushy tail. Bugs have a split shell and extra legs. Ghouls are see-through and float. Rocklings are speckled stone with moss. Sprouts are leafy. Fishlings have scales, gills and fins. Drakes have wings, back spikes, belly plates and a tail. Cosmos are tiny starry planets with a ring. Slimes and ghouls have no legs, so the builder hides that choice for them.
+
 ## Finishing moves
 
-After the spin, the winner's body type decides how the loser goes out (all cartoon). They're in `apps/web/src/components/finishers/`:
+After the spin, both monsters jump out of their cards into the arena. The winner's body type decides its attack, and the stake decides how it ends:
 
-| Body | Move |
-| --- | --- |
-| Slime | Gloop Engulf: oozes over the loser, who dissolves in bubbles |
-| Mechanoid | Grabber Arm: a telescopic arm clamps the loser, crushes them into a cube and flings it |
-| Furball | Hairball Steamroller: rolls over the loser and flattens them like a pancake |
-| Mutant | Toxic Burp: the loser turns green, shrinks and hops away |
-| Beast | Ground Pound: leaps on the loser, shakes the arena, leaves dizzy stars |
-| Bug | Swarm Lift: a swarm covers the loser and carries them off |
-| Ghoul | Spooky Possession: a ghost flies in and the loser floats away |
-| Rockling | Rockslide: a pile of rocks buries the loser |
-| Sprout | Overgrowth: vines drag the loser underground and a flower blooms |
-| Fishling | Tidal Wave: washes the loser away and leaves a flopping fish |
-| Drake | Dragon Breath: the loser is toasted to an ash pile with blinking eyes |
-| Cosmo | UFO Abduction: a tractor beam lifts the loser away |
+- **Eat:** the full destructive version of the attack (below).
+- **Bite:** the loser survives the attack, then the winner chomps a bite out of them and the strength taken floats over to the winner.
+- **Collect:** the loser survives the attack, then a capture orb swallows them and flies into the winner's card.
+- **Practice:** the loser survives the attack and is knocked out, seeing stars.
+
+Anyone who survives jumps back into their card at the end. The moves are in `apps/web/src/components/finishers/`; open `/finishers` to try every body type with every ending.
+
+| Body | Attack | Eat ending |
+| --- | --- | --- |
+| Slime | Gloop Engulf: oozes over the loser | Dissolves them in bubbles (spared: spits them out) |
+| Mechanoid | Grabber Arm: a telescopic arm clamps and lifts the loser | Crushes them into a cube and flings it (spared: rattles and drops them) |
+| Furball | Hairball Steamroller: flattens the loser like a pancake | Left flat (spared: boings back up) |
+| Mutant | Toxic Burp: the loser turns green and tiny | Hops away (spared: poofs back to size) |
+| Beast | Ground Pound: arena shake, cracks, dizzy stars | Left flat (spared: boings back up) |
+| Bug | Swarm Lift: a swarm covers the loser | Carried away (spared: shooed off and dropped) |
+| Ghoul | Spooky Possession: a ghost flies into the loser | Floats away as a ghost (spared: the ghost pops back out) |
+| Rockling | Rockslide: rocks pile on the loser | Buried (spared: bursts out) |
+| Sprout | Overgrowth: vines wrap the loser | Dragged underground, a flower blooms (spared: squeezed, then let go) |
+| Fishling | Tidal Wave: knocks the loser flat | Washed away, a fish flops (spared: gets up soggy) |
+| Drake | Dragon Breath: the loser is toasted | Crumbles to ash with blinking eyes (spared: coughs off the soot) |
+| Cosmo | UFO Abduction: a tractor beam lifts the loser | Beamed away (spared: dropped back down) |
 
 ## How a fight works
 
