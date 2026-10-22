@@ -1,0 +1,67 @@
+name: Monster Brawl Club for Windows
+
+# Builds MonsterBrawlClub.exe on Windows, checks that it starts and serves the game,
+# then publishes the zip as a GitHub release ("Monster Brawl Club for Windows").
+on:
+  push:
+    branches: [claude/fight-my-monster-remake-2zc9r1]
+    paths: [monster-brawl-club/**, .github/workflows/monster-brawl-club-windows.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows-exe:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: monster-brawl-club
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: monster-brawl-club/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: monster-brawl-club/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:exe
+
+      - name: Check the exe starts and plays
+        shell: pwsh
+        run: |
+          $env:MBC_NO_BROWSER = '1'
+          $p = Start-Process -FilePath release\MonsterBrawlClub\MonsterBrawlClub.exe -PassThru -NoNewWindow -RedirectStandardOutput exe.log -RedirectStandardError exe.err
+          $ok = $false
+          for ($i = 0; $i -lt 90; $i++) {
+            try { Invoke-RestMethod http://localhost:3001/api/health | Out-Null; $ok = $true; break } catch { Start-Sleep 2 }
+          }
+          Get-Content exe.log -Tail 20; Get-Content exe.err -Tail 20
+          if (-not $ok) { throw 'The game did not start' }
+          $body = @{ username = 'WinKid'; password = 'kidpass1' } | ConvertTo-Json
+          $r = Invoke-RestMethod -Method Post -ContentType 'application/json' -Body $body http://localhost:3001/api/auth/signup
+          Write-Output "signed up as $($r.me.username)"
+          if ($r.me.username -ne 'WinKid') { throw 'Sign-up failed' }
+          (Invoke-WebRequest http://localhost:3001/).Content.Substring(0, 60)
+          Stop-Process -Id $p.Id -Force
+
+      - name: Zip
+        shell: pwsh
+        run: Compress-Archive -Path release\MonsterBrawlClub -DestinationPath MonsterBrawlClub-Windows.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MonsterBrawlClub-Windows
+          path: monster-brawl-club/MonsterBrawlClub-Windows.zip
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: monster-brawl-club-windows
+          name: Monster Brawl Club for Windows
+          target_commitish: ${{ github.sha }}
+          prerelease: true
+          files: monster-brawl-club/MonsterBrawlClub-Windows.zip
+          body: |
+            Download **MonsterBrawlClub-Windows.zip**, right-click it and choose **Extract All**, then open the folder and double-click **MonsterBrawlClub.exe**.
+            If Windows says "Windows protected your PC", click **More info**, then **Run anyway**. Your browser opens the game; keep the black window open while you play.

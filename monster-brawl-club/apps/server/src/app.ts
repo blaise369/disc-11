@@ -30,7 +30,7 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<{ app: 
   app.get('/api/health', async () => ({ ok: true }));
 
   // In production, serve the built web app (SPA fallback to index.html).
-  const webDist = fileURLToPath(new URL('../../web/dist', import.meta.url));
+  const webDist = process.env.WEB_DIST ?? fileURLToPath(new URL('../../web/dist', import.meta.url));
   if (existsSync(webDist)) {
     await app.register(fastifyStatic, { root: webDist, wildcard: false });
     app.setNotFoundHandler((req, reply) => {

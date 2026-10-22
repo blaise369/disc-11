@@ -15,7 +15,9 @@ All six milestones of the spec are built. The spec's parent accounts and parenta
 
 ## Play it
 
-You only need [Node.js](https://nodejs.org) (the LTS version, 22 or newer). No database or Docker to install: `pnpm play` runs its own private database from inside the project folder.
+**Easiest on Windows:** download `MonsterBrawlClub-Windows.zip` from the [Monster Brawl Club for Windows release](https://github.com/blaise369/disc-11/releases/tag/monster-brawl-club-windows), right-click it and choose **Extract All**, then double-click **MonsterBrawlClub.exe** in the extracted folder. Nothing else to install. If Windows says "Windows protected your PC", click **More info**, then **Run anyway**. (To make that package yourself: `pnpm build:exe`, which builds for the computer it runs on into `release/`.)
+
+Otherwise you only need [Node.js](https://nodejs.org) (the LTS version, 22 or newer). No database or Docker to install: `pnpm play` runs its own private database from inside the project folder.
 
 1. Install Node.js.
 2. Get the code: [download the ZIP](https://github.com/blaise369/disc-11/archive/refs/heads/claude/fight-my-monster-remake-2zc9r1.zip) and unzip it, or `git clone` the repo and check out the `claude/fight-my-monster-remake-2zc9r1` branch.

@@ -12,10 +12,13 @@
     "start": "NODE_ENV=production pnpm --filter @mbc/server start",
     "db:push": "pnpm --filter @mbc/server db:push",
     "e2e": "playwright test",
-    "play": "pnpm --filter @mbc/web build && pnpm --filter @mbc/server play"
+    "play": "pnpm --filter @mbc/web build && pnpm --filter @mbc/server play",
+    "build:exe": "node scripts/build-exe.mjs"
   },
   "devDependencies": {
-    "typescript": "^5.6.3",
-    "@playwright/test": "1.56.1"
+    "@playwright/test": "1.56.1",
+    "esbuild": "0.25.12",
+    "postject": "1.0.0-alpha.6",
+    "typescript": "^5.6.3"
   }
 }
