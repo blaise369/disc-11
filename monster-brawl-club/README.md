@@ -15,23 +15,32 @@ All six milestones of the spec are built. The spec's parent accounts and parenta
 
 ## Play it
 
-The easiest way is [Docker Desktop](https://www.docker.com/products/docker-desktop/) (free for personal use). Install it, start it, then in a terminal:
+You only need [Node.js](https://nodejs.org) (the LTS version, 22 or newer). No database or Docker to install: `pnpm play` runs its own private database from inside the project folder.
 
-```sh
-git clone https://github.com/blaise369/disc-11.git
-cd disc-11
-git checkout claude/fight-my-monster-remake-2zc9r1
-cd monster-brawl-club
-docker compose up --build
-```
+1. Install Node.js.
+2. Get the code: [download the ZIP](https://github.com/blaise369/disc-11/archive/refs/heads/claude/fight-my-monster-remake-2zc9r1.zip) and unzip it, or `git clone` the repo and check out the `claude/fight-my-monster-remake-2zc9r1` branch.
+3. Open a terminal in the `monster-brawl-club` folder and run:
 
-The first build takes a few minutes. When the log says the server is listening, open **http://localhost:3001**, pick a username and play. Stop it with Ctrl+C; your monsters are kept for next time (`docker compose down -v` wipes them).
+   ```sh
+   corepack enable
+   pnpm install
+   pnpm play
+   ```
 
-To play against a friend on the same Wi-Fi, they open `http://<your computer's IP>:3001`. Each player needs their own account, and you can challenge each other from the Fight page.
+   On Windows, if `corepack enable` says permission denied, use `npm install -g pnpm` instead.
+4. When it says **Monster Brawl Club is running**, open **http://localhost:3001**, pick a username and play.
+
+Stop it with Ctrl+C. Next time, just run `pnpm play` again: your monsters are saved in the `.play-data` folder (delete that folder to start over).
+
+To play against a friend on the same Wi-Fi, they open `http://<your computer's IP>:3001` and make their own account. Then you can challenge each other from the Fight page.
+
+### Or with Docker
+
+If you have Docker, `docker compose up --build` in the `monster-brawl-club` folder runs the same game with a full Postgres and Redis, on http://localhost:3001.
 
 ## Running it for development
 
-You need Node 20+, pnpm, PostgreSQL and Redis.
+You need Node 22+, pnpm and PostgreSQL. Redis is optional: without `REDIS_URL`, online status and rate limits are kept in memory, which is fine for one server.
 
 ```sh
 pnpm install

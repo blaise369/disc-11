@@ -7,7 +7,8 @@ try {
 
 export const env = {
   databaseUrl: process.env.DATABASE_URL ?? 'postgresql://mbc:mbc@localhost:5432/mbc',
-  redisUrl: process.env.REDIS_URL ?? 'redis://localhost:6379',
+  /** Optional: without it, presence and rate limits live in memory (fine for one server). */
+  redisUrl: process.env.REDIS_URL || null,
   port: Number(process.env.PORT ?? 3001),
   production: process.env.NODE_ENV === 'production',
   /** Secure (HTTPS-only) cookies. On by default in production; turn off to play over plain http://localhost. */
