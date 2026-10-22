@@ -27,7 +27,7 @@ You only need [Node.js](https://nodejs.org) (the LTS version, 22 or newer). No d
    pnpm play
    ```
 
-   On Windows, if `corepack enable` says permission denied, use `npm install -g pnpm` instead.
+   **On Windows**, use **Command Prompt** (search for `cmd`), not PowerShell: PowerShell often blocks the `npm`/`pnpm` scripts. If `corepack enable` says `EPERM`, skip it and run `npm install -g pnpm` instead, then carry on with `pnpm install`.
 4. When it says **Monster Brawl Club is running**, open **http://localhost:3001**, pick a username and play.
 
 Stop it with Ctrl+C. Next time, just run `pnpm play` again: your monsters are saved in the `.play-data` folder (delete that folder to start over).
